@@ -1,4 +1,4 @@
-const REPO_URL = "https://github.com/hack-r/theVault-Darknet-Market";
+const REPO_URL = "https://github.com/posocap/theVault-Darknet-Market";
 const BABY_X_URL = "https://www.barnesandnoble.com/w/baby-x-kira-peikoff/1143604735";
 const POSOCAP_URL = "https://posocap.com";
 

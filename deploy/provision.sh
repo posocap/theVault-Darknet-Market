@@ -34,7 +34,7 @@
 # =============================================================================
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/hack-r/theVault-Darknet-Market.git}"
+REPO_URL="${REPO_URL:-https://github.com/posocap/theVault-Darknet-Market.git}"
 REPO_REF="${REPO_REF:-main}"
 APP_DIR="${APP_DIR:-/var/www/thevault}"
 SRC_DIR="${SRC_DIR:-/opt/thevault-src}"
