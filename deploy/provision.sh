@@ -124,6 +124,17 @@ else
   rm -f /etc/nginx/sites-enabled/default
 fi
 
+PHP_OK="$(php -r '
+  $v = PHP_VERSION;
+  $patched =
+    (version_compare($v, "8.2.35", ">=") && version_compare($v, "8.3.0", "<")) ||
+    (version_compare($v, "8.3.36", ">=") && version_compare($v, "8.4.0", "<")) ||
+    (version_compare($v, "8.4.27", ">=") && version_compare($v, "8.5.0", "<")) ||
+    version_compare($v, "8.5.12", ">=");
+  echo $patched ? "yes" : "no";
+')"
+[[ "$PHP_OK" == yes ]] || die "PHP $(php -r 'echo PHP_VERSION;') is affected by PHP2Shell; install PHP 8.2.35+, 8.3.36+, 8.4.27+, or 8.5.12+ and re-run."
+
 command -v composer >/dev/null 2>&1 || {
   log "Installing Composer..."
   curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php
@@ -131,8 +142,6 @@ command -v composer >/dev/null 2>&1 || {
   rm -f /tmp/composer-setup.php
 }
 
-PHP_OK="$(php -r 'echo version_compare(PHP_VERSION, "8.2.0", ">=") ? "yes" : "no";')"
-[[ "$PHP_OK" == yes ]] || die "PHP $(php -r 'echo PHP_VERSION;') is too old (need >= 8.2). Enable a newer PHP stream or repo (e.g. Remi on RPM hosts) and re-run."
 log "PHP $(php -r 'echo PHP_VERSION;') OK"
 
 # --- fetch the app -----------------------------------------------------------
