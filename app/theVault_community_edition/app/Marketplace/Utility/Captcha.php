@@ -27,9 +27,8 @@ class Captcha
         if (!session()->has('captcha')) {
             return false;
         }
-        if (session()->get('captcha') !== $input) {
-            return false;
-        }
-        return true;
+        // One-time use: consume the phrase whether or not the guess is right
+        $phrase = session()->pull('captcha');
+        return is_string($input) && hash_equals((string) $phrase, $input);
     }
 }

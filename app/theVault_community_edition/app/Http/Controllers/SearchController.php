@@ -164,7 +164,7 @@ class SearchController extends Controller
         //max price
         if ($maxPriceQuery !== null && floatval($maxPriceQuery) > 0){
             $maxPrice = floatval($maxPriceQuery);
-            $filteredCollection = $collection->filter(function ($product) use ($maxPrice) {
+            $filteredCollection = $filteredCollection->filter(function ($product) use ($maxPrice) {
                 return $product->price_from <= floatval($maxPrice);
             });
         }

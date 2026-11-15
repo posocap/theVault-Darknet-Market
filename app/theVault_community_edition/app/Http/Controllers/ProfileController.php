@@ -374,6 +374,7 @@ class ProfileController extends Controller
      */
     public function purchaseMessage(Purchase $purchase)
     {
+        $this->assertPurchaseParticipant($purchase);
         return view('profile.purchases.viewmessage', [
             'purchase' => $purchase
         ]);
@@ -387,6 +388,7 @@ class ProfileController extends Controller
      */
     public function purchase(Purchase $purchase)
     {
+        $this->assertPurchaseParticipant($purchase);
         return view('profile.purchases.purchase', [
             'purchase' => $purchase
         ]);
@@ -400,6 +402,7 @@ class ProfileController extends Controller
      */
     public function deliveredConfirm(Purchase $purchase)
     {
+        abort_unless($purchase->isBuyer(), 403);
         return view('profile.purchases.confirmdelivered', [
             'backRoute' => redirect() -> back() -> getTargetUrl(),
             'purchase' => $purchase,
@@ -414,6 +417,7 @@ class ProfileController extends Controller
      */
     public function markAsDelivered(Purchase $purchase)
     {
+        abort_unless($purchase->isBuyer(), 403);
         try{
             $purchase -> delivered();
         }
@@ -432,6 +436,7 @@ class ProfileController extends Controller
      */
     public function confirmCanceled(Purchase $purchase)
     {
+        $this->assertPurchaseParticipant($purchase);
         return view('profile.purchases.confirmcanceled', [
             'backRoute' => redirect() -> back() -> getTargetUrl(),
             'sale' => $purchase
@@ -446,6 +451,7 @@ class ProfileController extends Controller
      */
     public function markAsCanceled(Purchase $purchase)
     {
+        $this->assertPurchaseParticipant($purchase);
         try{
             $purchase -> cancel();
             session() -> flash('success', 'You have successfully marked sale as canceled!');
@@ -468,6 +474,7 @@ class ProfileController extends Controller
      */
     public function makeDispute(MakeDisputeRequest $request, Purchase $purchase)
     {
+        $this->assertPurchaseParticipant($purchase);
         try{
             $purchase -> makeDispute($request -> message);
             session() -> flash('success', 'You have made a dispute for this purchase!');
@@ -488,6 +495,7 @@ class ProfileController extends Controller
      */
     public function newDisputeMessage(NewDisputeMessageRequest $request, Dispute $dispute)
     {
+        $this->assertPurchaseParticipant($dispute->purchase);
         try{
             $dispute -> newMessage($request -> message);
             event(new ProductDisputeNewMessageSent($dispute->purchase,auth()->user()));
@@ -572,6 +580,7 @@ class ProfileController extends Controller
      */
     public function tickets(Ticket $ticket = null)
     {
+        abort_if(!is_null($ticket) && $ticket->user_id != auth()->id(), 403);
         // Tickets
         if(!is_null($ticket)){
             $replies = $ticket -> replies() -> orderByDesc('created_at') -> paginate( config('marketplace.products_per_page'));
@@ -608,6 +617,7 @@ class ProfileController extends Controller
 
     public function newTicketMessage(Ticket $ticket, NewTicketMessageRequest $request)
     {
+        abort_unless($ticket->user_id == auth()->id(), 403);
         try{
             TicketReply::postReply($ticket, $request -> message);
         }
@@ -619,4 +629,12 @@ class ProfileController extends Controller
     }
     
 
+
+    /**
+     * Only the buyer or the vendor of a purchase may act on it.
+     */
+    private function assertPurchaseParticipant(Purchase $purchase)
+    {
+        abort_unless($purchase->isBuyer() || $purchase->isVendor(), 403);
+    }
 }

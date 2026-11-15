@@ -15,7 +15,6 @@ use App\Traits\Notifiable;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\DB;
 use Monolog\Logger;
-use phpDocumentor\Reflection\Types\Integer;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 

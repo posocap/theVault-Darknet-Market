@@ -33,7 +33,7 @@ http {
     server {
         listen       80;
         listen       [::]:80;
-        server_name  vault3wkmpyv4zgya5itom2vg2qro2q5yzn4ostgudnak2mgl6pwxpad.onion;
+        server_name  your_onion_address.onion;
 
         root         /var/www/market/public;  # Adjust the root directory as needed
         index        index.php index.html index.htm;
