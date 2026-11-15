@@ -13,6 +13,22 @@ if ! sudo dnf install -y php; then
     exit 1
 fi
 
+PHP_OK="$(php <<'PHP'
+<?php
+$v = PHP_VERSION;
+$patched =
+    (version_compare($v, "8.2.35", ">=") && version_compare($v, "8.3.0", "<")) ||
+    (version_compare($v, "8.3.36", ">=") && version_compare($v, "8.4.0", "<")) ||
+    (version_compare($v, "8.4.27", ">=") && version_compare($v, "8.5.0", "<")) ||
+    version_compare($v, "8.5.12", ">=");
+echo $patched ? "yes" : "no";
+PHP
+)"
+if [ "$PHP_OK" != yes ]; then
+    echo "PHP $(php -r 'echo PHP_VERSION;') is affected by PHP2Shell; install PHP 8.2.35+, 8.3.36+, 8.4.27+, or 8.5.12+ and re-run." >&2
+    exit 1
+fi
+
 echo "Installing Nginx..."
 sudo dnf install -y nginx
 sudo ufw allow 'Nginx HTTP'
@@ -55,6 +71,5 @@ echo "Setup marketpalce DB in Maria/MySQL..."
 echo ""
 echo "OK, this part needs to be done manually (see install_step2.txt), then you can continue to run install_step3.sh"
 echo "Setup your root password for MariaDB then run mysql --defaults-file=${CONFIG_FILE} -e "CREATE DATABASE>""
-
 
 
