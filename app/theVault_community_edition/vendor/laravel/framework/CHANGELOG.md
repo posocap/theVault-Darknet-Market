@@ -1,6 +1,138 @@
 # Release Notes for 11.x
 
-## [Unreleased](https://github.com/laravel/framework/compare/v11.43.1...11.x)
+## [Unreleased](https://github.com/laravel/framework/compare/v11.51.0...11.x)
+
+## [v11.51.0](https://github.com/laravel/framework/compare/v11.50.0...v11.51.0) - 2026-03-26
+
+* [11.x] `schedule:list` display expression in the correct timezone by [@xiCO2k](https://github.com/xiCO2k) in https://github.com/laravel/framework/pull/59340
+
+## [v11.50.0](https://github.com/laravel/framework/compare/v11.49.0...v11.50.0) - 2026-03-17
+
+## [v11.49.0](https://github.com/laravel/framework/compare/v11.47.0...v11.49.0) - 2026-03-17
+
+* [11.x] Fix PHPUnit compatibility by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/58735
+* [11.x] Fix MySQL inRandomOrder default seed regression by [@laraib15](https://github.com/laraib15) in https://github.com/laravel/framework/pull/58969
+* [11.x] Deduplicate paths in view:cache by [@ganyicz](https://github.com/ganyicz) in https://github.com/laravel/framework/pull/59146
+* [11.x] Test Improvements by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/59248
+
+## [v11.47.0](https://github.com/laravel/framework/compare/v11.46.2...v11.47.0) - 2025-11-28
+
+* [11.x] Backport JsonSchema Contract by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/framework/pull/57939
+
+## [v11.46.2](https://github.com/laravel/framework/compare/v11.46.1...v11.46.2) - 2025-11-25
+
+* [11.x] Avoid duplicate chain catch when nested batch fails on sync queue by [@faisuc](https://github.com/faisuc) in https://github.com/laravel/framework/pull/57322
+* [11.x] Supports Symfony 7.4 by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/57753
+* [11.x] Fix `Request::getAcceptableContentTypes()` changes in Symfony 7.4 by [@GrahamCampbell](https://github.com/GrahamCampbell) in https://github.com/laravel/framework/pull/57806
+
+## [v11.46.1](https://github.com/laravel/framework/compare/v11.46.0...v11.46.1) - 2025-09-30
+
+* [11.x] Fixes incorrectly serializing virtual properties (backport) by [@DarkGhostHunter](https://github.com/DarkGhostHunter) in https://github.com/laravel/framework/pull/57201
+* Revert "[11.x] Fixes incorrectly serializing virtual properties (backport)" by [@taylorotwell](https://github.com/taylorotwell) in https://github.com/laravel/framework/pull/57203
+
+## [v11.46.0](https://github.com/laravel/framework/compare/v11.45.3...v11.46.0) - 2025-09-08
+
+## [v11.45.3](https://github.com/laravel/framework/compare/v11.45.2...v11.45.3) - 2025-09-02
+
+* [11.x] Test Improvements by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/56649
+* [11.x] Fix exception page not preparing SQL bindings by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/56651
+* [11.x] Test Improvements by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/56849
+* [11.x] Chore: Decouple Str::random() from Validator by [@michaeldyrynda](https://github.com/michaeldyrynda) in https://github.com/laravel/framework/pull/56852
+* [11.x] Allow a wider range of `brick/math` versions by [@GrahamCampbell](https://github.com/GrahamCampbell) in https://github.com/laravel/framework/pull/56890
+
+## [v11.45.2](https://github.com/laravel/framework/compare/v11.45.1...v11.45.2) - 2025-08-13
+
+* [11.x] Fix validation to not throw incompatible validation exception by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/55963
+* [11.x] Fix `symfony/console:7.4` compatibility by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/56015
+* [11.x] Pass the limiter to the when & report callbacks by [@jimmypuckett](https://github.com/jimmypuckett) in https://github.com/laravel/framework/pull/56129
+* [11.x] Backport test fixes by [@GrahamCampbell](https://github.com/GrahamCampbell) in https://github.com/laravel/framework/pull/56183
+* Revert "[11.x] Pass the limiter to the when & report callbacks" by [@GrahamCampbell](https://github.com/GrahamCampbell) in https://github.com/laravel/framework/pull/56184
+* [11.x] Correct how base options for missing config files are preloaded by [@u01jmg3](https://github.com/u01jmg3) in https://github.com/laravel/framework/pull/56216
+* [11.x] backport #56235 by [@calebdw](https://github.com/calebdw) in https://github.com/laravel/framework/pull/56236
+* [11.x] Consistent use of `mb_split()` to split strings into words by [@GrahamCampbell](https://github.com/GrahamCampbell) in https://github.com/laravel/framework/pull/56617
+* [11.x] `CacheSchedulingMutex` should use lock connection by [@GrahamCampbell](https://github.com/GrahamCampbell) in https://github.com/laravel/framework/pull/56614
+* [11.x] Test Improvements by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/56630
+* [11.x] Update `orchestra/testbench-core` deps by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/56636
+
+## [v11.45.1](https://github.com/laravel/framework/compare/v11.45.0...v11.45.1) - 2025-06-03
+
+* Add support for sending raw (non-encoded) attachments in Resend mail by [@Roywcm](https://github.com/Roywcm) in https://github.com/laravel/framework/pull/55837
+* [11.x] Fixes Symfony Console 7.3 deprecations on closure command by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/55888
+
+## [v11.45.0](https://github.com/laravel/framework/compare/v11.44.7...v11.45.0) - 2025-05-20
+
+* [11.x] Test Improvements by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/55549
+* [11.x] Install Passport 13.x by [@hafezdivandari](https://github.com/hafezdivandari) in https://github.com/laravel/framework/pull/55621
+* [11.x] Bump minimum league/commonmark by [@andrextor](https://github.com/andrextor) in https://github.com/laravel/framework/pull/55660
+* Backporting Timebox fixes to 11.x by [@valorin](https://github.com/valorin) in https://github.com/laravel/framework/pull/55705
+* Test SQLServer 2017 on Ubuntu 22.04 by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/55716
+* [11.x] Fix Symfony 7.3 deprecations by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/55711
+* [11.x] Backport `TestResponse::assertRedirectBack` by [@GrahamCampbell](https://github.com/GrahamCampbell) in https://github.com/laravel/framework/pull/55780
+
+## [v11.44.7](https://github.com/laravel/framework/compare/v11.44.6...v11.44.7) - 2025-04-25
+
+## [v11.44.6](https://github.com/laravel/framework/compare/v11.44.5...v11.44.6) - 2025-04-25
+
+* [11.x] Fix `EncodedHtmlString` to ignore instance of `HtmlString` by [@jbraband](https://github.com/jbraband) in https://github.com/laravel/framework/pull/55543
+
+## [v11.44.5](https://github.com/laravel/framework/compare/v11.44.4...v11.44.5) - 2025-04-24
+
+* [11.x] Allows to toggle markdown email encoding by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/55539
+
+## [v11.44.4](https://github.com/laravel/framework/compare/v11.44.3...v11.44.4) - 2025-04-23
+
+* [11.x] Remove incorrect syntax from mail's `message` template by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/55530
+
+## [v11.44.3](https://github.com/laravel/framework/compare/v11.44.2...v11.44.3) - 2025-04-23
+
+* [10.x] Refine error messages for detecting lost connections (Debian bookworm compatibility) by [@mfn](https://github.com/mfn) in https://github.com/laravel/framework/pull/53794
+* [10.x] Bump minimum `league/commonmark` by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/53829
+* [10.x] Backport 11.x PHP 8.4 fix for str_getcsv deprecation by [@aka-tpayne](https://github.com/aka-tpayne) in https://github.com/laravel/framework/pull/54074
+* [10.x] Fix attribute name used on `Validator` instance within certain rule classes by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/54943
+* Add `Illuminate\Support\EncodedHtmlString` by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/54737
+* [11.x] Fix missing `return $this` for `assertOnlyJsonValidationErrors` by [@LeTamanoir](https://github.com/LeTamanoir) in https://github.com/laravel/framework/pull/55099
+* [11.x] Fix `Illuminate\Support\EncodedHtmlString` from causing breaking change by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/55149
+* [11.x] Respect custom path for cached views by the `AboutCommand` by [@alies-dev](https://github.com/alies-dev) in https://github.com/laravel/framework/pull/55179
+* [11.x] Include all invisible characters in Str::trim by [@laserhybiz](https://github.com/laserhybiz) in https://github.com/laravel/framework/pull/54281
+* [11.x] Test Improvements by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/55302
+
+## [v11.44.2](https://github.com/laravel/framework/compare/v11.44.1...v11.44.2) - 2025-03-12
+
+* [11.x] Fix double negative in `whereNotMorphedTo()` query by [@owenvoke](https://github.com/owenvoke) in https://github.com/laravel/framework/pull/54902
+* [11.x] Backport "Change `paginate()` method return types to `\Illuminate\Pagination\LengthAwarePaginator`" by [@carestad](https://github.com/carestad) in https://github.com/laravel/framework/pull/54917
+* [11.x] Revert faulty change to `EnumeratesValues::ensure()` doc block by [@axlon](https://github.com/axlon) in https://github.com/laravel/framework/pull/54919
+* Ensure ValidationEmailRuleTest skips tests requiring the intl extension when unavailable by [@alikhosravidev](https://github.com/alikhosravidev) in https://github.com/laravel/framework/pull/54918
+* [11.x] Backport "Fix issue with using `RedisCluster` with compression or serialization" by [@rzv-me](https://github.com/rzv-me) in https://github.com/laravel/framework/pull/54935
+* [11.x] Fix callOnce in Seeder so it handles arrays properly by [@lbovit](https://github.com/lbovit) in https://github.com/laravel/framework/pull/54985
+
+## [v11.44.1](https://github.com/laravel/framework/compare/v11.44.0...v11.44.1) - 2025-03-05
+
+* [11.x] Add valid values to ensure method by [@lancepioch](https://github.com/lancepioch) in https://github.com/laravel/framework/pull/54840
+* Fix attribute name used on `Validator` instance within certain rule classes by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/54845
+* [11.x] Fix `Application::interBasePath()` fails to resolve application when project name is "vendor" by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/54871
+* [11.x] Test improvements by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/54879
+
+## [v11.44.0](https://github.com/laravel/framework/compare/v11.43.2...v11.44.0) - 2025-02-24
+
+* [11.x] Fix parsing `PHP_CLI_SERVER_WORKERS` as `string` instead of `int` by [@crynobone](https://github.com/crynobone) in https://github.com/laravel/framework/pull/54724
+* [11.x] Rename Redis parse connection for cluster test method to follow naming conventions by [@jackbayliss](https://github.com/jackbayliss) in https://github.com/laravel/framework/pull/54721
+* [11.x] Allow `readAt` method to use in database channel by [@utsavsomaiya](https://github.com/utsavsomaiya) in https://github.com/laravel/framework/pull/54729
+* [11.x] Fix: Custom Exceptions with Multiple Arguments does not properly rein… by [@pandiselvamm](https://github.com/pandiselvamm) in https://github.com/laravel/framework/pull/54705
+* [11.x] Update ConcurrencyTest exception reference to use namespace by [@jackbayliss](https://github.com/jackbayliss) in https://github.com/laravel/framework/pull/54732
+* [11.x] Deprecate `Factory::$modelNameResolver` by [@samlev](https://github.com/samlev) in https://github.com/laravel/framework/pull/54736
+* [11x.] Improved typehints for `InteractsWithDatabase` by [@cosmastech](https://github.com/cosmastech) in https://github.com/laravel/framework/pull/54748
+* [11.x] Improved typehints for `InteractsWithExceptionHandling` && `ExceptionHandlerFake` by [@cosmastech](https://github.com/cosmastech) in https://github.com/laravel/framework/pull/54747
+
+## [v11.43.2](https://github.com/laravel/framework/compare/v11.43.1...v11.43.2) - 2025-02-19
+
+* [11.x] Add missing test for `implode()` by [@nuernbergerA](https://github.com/nuernbergerA) in https://github.com/laravel/framework/pull/54704
+* [11.x] Enhance eventStream to Support Custom Events and Start Messages by [@devhammed](https://github.com/devhammed) in https://github.com/laravel/framework/pull/54695
+* Revert "[11.x] Enhance eventStream to Support Custom Events and Start Messages" by [@taylorotwell](https://github.com/taylorotwell) in https://github.com/laravel/framework/pull/54714
+* [11.x] Replace MD5 with xxh128 in File::hasSameHash() by [@vlakoff](https://github.com/vlakoff) in https://github.com/laravel/framework/pull/54690
+* [11.x] Add parameter typing for closure to addGlobalScope method by [@jnoordsij](https://github.com/jnoordsij) in https://github.com/laravel/framework/pull/54677
+* [11.x] `assertOnlyJsonValidationErrors` / `assertOnlyInvalid` by [@gdebrauwer](https://github.com/gdebrauwer) in https://github.com/laravel/framework/pull/54678
+* [11.x] Allow for assertions against `QueueFake::pushRaw()` by [@cosmastech](https://github.com/cosmastech) in https://github.com/laravel/framework/pull/54703
+* [11.x] Fix: Handles non nested explode of multiple Date and Numeric rules in ValidationRuleParser by [@AlexandreMeledandri](https://github.com/AlexandreMeledandri) in https://github.com/laravel/framework/pull/54718
 
 ## [v11.43.1](https://github.com/laravel/framework/compare/v11.43.0...v11.43.1) - 2025-02-19
 
