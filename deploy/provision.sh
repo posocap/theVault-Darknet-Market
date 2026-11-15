@@ -376,6 +376,11 @@ sed -i '/^# BEGIN thevault/,/^# END thevault/d' "$TORRC"
   echo "# BEGIN thevault"
   echo "HiddenServiceDir ${HS_DIR}/"
   echo "HiddenServicePort 80 127.0.0.1:${NGINX_PORT}"
+  # Keep Tor's footprint minimal: client-only, never a relay/exit, no SOCKS listener.
+  echo "SocksPort 0"
+  echo "ExitRelay 0"
+  echo "ORPort 0"
+  echo "AvoidDiskWrites 1"
   if [[ -n "$BRIDGE_LINES" ]]; then
     OBFS=""
     for c in lyrebird obfs4proxy; do
