@@ -124,7 +124,8 @@ else
   rm -f /etc/nginx/sites-enabled/default
 fi
 
-PHP_OK="$(php -r '
+PHP_OK="$(php <<'PHP'
+<?php
   $v = PHP_VERSION;
   $patched =
     (version_compare($v, "8.2.35", ">=") && version_compare($v, "8.3.0", "<")) ||
@@ -132,7 +133,8 @@ PHP_OK="$(php -r '
     (version_compare($v, "8.4.27", ">=") && version_compare($v, "8.5.0", "<")) ||
     version_compare($v, "8.5.12", ">=");
   echo $patched ? "yes" : "no";
-')"
+PHP
+)"
 [[ "$PHP_OK" == yes ]] || die "PHP $(php -r 'echo PHP_VERSION;') is affected by PHP2Shell; install PHP 8.2.35+, 8.3.36+, 8.4.27+, or 8.5.12+ and re-run."
 
 command -v composer >/dev/null 2>&1 || {

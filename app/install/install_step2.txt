@@ -19,7 +19,7 @@ Back to PHP. Check your version:
 
 	php -v
 
-It should say PHP 8.3 or higher. If PHP 9 has come out when you're using this then that will likely be too new, although you can try it. We need to edit the php.ini file:
+It must be a patched release: PHP 8.2.35 or later in the 8.2 series, 8.3.36 or later in 8.3, 8.4.27 or later in 8.4, or 8.5.12 or later (including newer PHP minor releases). Older PHP versions are affected by PHP2Shell and should not be exposed to web requests. We need to edit the php.ini file:
 
 	sudo nano /etc/php.ini
 
@@ -70,4 +70,3 @@ Documents curl -X GET "localhost:9200"
   },
   "tagline" : "You Know, for Search"
 }
-
