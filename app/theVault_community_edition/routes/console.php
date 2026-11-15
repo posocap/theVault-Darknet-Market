@@ -31,11 +31,11 @@ Artisan::command('inspire', function () {
 */
 
 // Delete messages older than marketplace.days_old_messages days.
-Schedule::command(DeleteOldMessages::class, ['days' => config('marketplace.days_old_messages')])
+Schedule::command(DeleteOldMessages::class, [config('marketplace.days_old_messages')])
     ->dailyAt('03:00');
 
 // Release 'sent' purchases older than marketplace.days_old_purchases days.
-Schedule::command(ReleasePurchasesCommand::class, ['days' => config('marketplace.days_old_purchases')])
+Schedule::command(ReleasePurchasesCommand::class, [config('marketplace.days_old_purchases')])
     ->dailyAt('03:30');
 
 // Complete purchases with enough balance every marketplace.days_complete days.

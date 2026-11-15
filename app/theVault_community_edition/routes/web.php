@@ -38,7 +38,6 @@ Route::middleware(['auth'])->namespace('App\\Http\\Controllers')->group(function
 Route::get('/', [IndexController::class, 'home'])->name('home');
 Route::get('/category/{category}', [IndexController::class, 'category'])->name('category.show');
 Route::get('/login', [IndexController::class, 'login'])->name('login');
-Route::get('/confirmation', [IndexController::class, 'confirmation'])->name('confirmation');
 Route::get('setview/{list}', [IndexController::class, 'setView'])->name('setview');
 
 // Product routes
