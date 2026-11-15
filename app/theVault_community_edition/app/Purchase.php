@@ -14,7 +14,6 @@ use App\Traits\DisplayablePurchase;
 use App\Traits\Purchasable;
 use App\Traits\Uuids;
 use Carbon\Carbon;
-use Faker\Provider\Payment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;

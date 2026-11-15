@@ -76,7 +76,7 @@ return [
      * Coins for seeder
      */
     'seeder_coins' => [
-        'btc'
+        'stb'
     ],
     /**
      * Display warning for users to disable JavaScript if they have it enabled
@@ -87,12 +87,7 @@ return [
     /**
      * Mirrors of the marketpalce
      */
-    'mirrors' => [
-        'vault3wkmpyv4zgya5itom2vg2qro2q5yzn4ostgudnak2mgl6pwxpad.onion',  
-        'vaultse3jbxka6zben4drte3qyh6jjsq6ggztrumeearmasa3nhl6xad.onion',
-		'vaultmlkjz5vpilscpzvzf6ijg7fwwfk2dfyeerrgtkg4mfof7vj4aad.onion',  
-		'vaultztwqinf2het7j5winsbzstqlfgpxp5mng36plmuuoc35q6ueoyd.onion'
-    ],
+    'mirrors' => array_values(array_filter(array_map('trim', explode(',', (string) env('MARKETPLACE_MIRRORS', ''))))),
     /**
      * For how long should front page queries be cached (in minutes)
      */

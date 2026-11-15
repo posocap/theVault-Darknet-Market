@@ -141,6 +141,7 @@ class ProductController extends Controller
     }
 
     public function cloneProductShow(Product $product) {
+        abort_unless(optional($product->user)->id === auth()->id(), 403);
 
         return view('profile.product.confirmclone')->with([
             'product' => $product
@@ -148,6 +149,7 @@ class ProductController extends Controller
     }
 
     public function cloneProductPost(Product $product) {
+        abort_unless(optional($product->user)->id === auth()->id(), 403);
 
         DB::beginTransaction();
         try {
@@ -212,7 +214,8 @@ class ProductController extends Controller
         } catch (\Exception $e) {
 
             DB::rollBack();
-            dd($e);
+            \Log::error($e);
+            session()->flash('errormessage', 'Something went wrong while saving the product.');
         }
 
         return redirect()->route('profile.vendor');

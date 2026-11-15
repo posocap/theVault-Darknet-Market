@@ -16,18 +16,18 @@ use App\Http\Controllers\SearchController;
 |
 */
 
-Route::name('auth.')->group(function () {
+Route::name('auth.')->namespace('App\\Http\\Controllers')->group(function () {
     include 'auth.php';
 });
 
-Route::prefix('admin')->group(function () {
+Route::prefix('admin')->namespace('App\\Http\\Controllers')->group(function () {
     Route::middleware(['admin_panel_access'])->group(function () {
         include 'admin.php';
     });
 });
 
 // Profile routes
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth'])->namespace('App\\Http\\Controllers')->group(function () {
     Route::get('banned', [ProfileController::class, 'banned'])->name('profile.banned');
     Route::middleware(['is_banned'])->group(function () {
         include 'profile.php';
@@ -38,7 +38,6 @@ Route::middleware(['auth'])->group(function () {
 Route::get('/', [IndexController::class, 'home'])->name('home');
 Route::get('/category/{category}', [IndexController::class, 'category'])->name('category.show');
 Route::get('/login', [IndexController::class, 'login'])->name('login');
-Route::get('/confirmation', [IndexController::class, 'confirmation'])->name('confirmation');
 Route::get('setview/{list}', [IndexController::class, 'setView'])->name('setview');
 
 // Product routes

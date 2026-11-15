@@ -42,6 +42,9 @@ class Product extends Model
     public function toSearchableArray() {
 
         $product = $this->with('category')->with('user')->where('id', $this->id)->first();
+        if (is_null($product)) {
+            return [];
+        }
         $array = [];
         $array['name'] = $product->name;
         $array['description'] = $product->description;

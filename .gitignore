@@ -1,3 +1,22 @@
 node_modules/
 .wrangler/
 .dev.vars
+
+# Secrets / environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+hs_ed25519*
+app/theVault_community_edition/storage/*.key
+
+# Logs / editor / OS cruft
+*.log
+.DS_Store
+*.swp
+*~
+
+# Generated
+app/theVault_community_edition/public/storage
+app/theVault_community_edition/bootstrap/cache/*.php

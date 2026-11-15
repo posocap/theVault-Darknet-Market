@@ -52,6 +52,13 @@ class SearchController extends Controller
 
         $start = microtime(true);
 
+        // The database/collection Scout engines cannot filter on the virtual
+        // fields (category, user, type) that only exist in the search index,
+        // so use a plain Eloquent query for them.
+        if (in_array(config('scout.driver'), ['database', 'collection', null], true)) {
+            return $this->searchWithEloquent($request, $searchQuery, $start);
+        }
+
         $query = Product::search($searchQuery);
 
         $query->limit = 1000;
@@ -102,6 +109,61 @@ class SearchController extends Controller
             'categories' => Category::roots(),
             'query' => $searchQuery,
             'time' => $end,
+            'results_count' => $results->count()
+        ]);
+    }
+
+    /**
+     * Search without an external search index.
+     */
+    private function searchWithEloquent(Request $request, $searchQuery, $start)
+    {
+        $query = Product::query()->where('active', 1);
+
+        if (is_string($searchQuery) && trim($searchQuery) !== '') {
+            $like = '%' . addcslashes(trim($searchQuery), '%_\\') . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('name', 'like', $like)
+                  ->orWhere('description', 'like', $like)
+                  ->orWhere('rules', 'like', $like);
+            });
+        }
+
+        $userQuery = $request->get('user');
+        if ($userQuery !== null && $userQuery !== '') {
+            $query->whereHas('user', function ($q) use ($userQuery) {
+                $q->where('username', $userQuery);
+            });
+        }
+
+        $categoryQuery = $request->get('category');
+        if ($categoryQuery !== null && $categoryQuery !== '' && $categoryQuery !== 'any') {
+            $category = Category::where('name', $categoryQuery)->first();
+            $ids = $category ? array_merge([$category->id], $category->allChildrenIds()) : [];
+            $query->whereIn('category_id', $ids);
+        }
+
+        $typeQuery = $request->get('type');
+        if ($typeQuery === 'digital') {
+            $query->whereHas('digital');
+        } elseif ($typeQuery === 'physical') {
+            $query->whereHas('physical');
+        }
+
+        $results = $query->get();
+        $results = $this->order($results, $request->get('order_by'));
+        $results = $this->priceFilter($results, $request->get('price_min'), $request->get('price_max'));
+
+        $perPage = config('marketplace.products_per_page');
+        $finalResult = $this->paginate($results, $perPage);
+        $finalResult->setPath($request->fullUrl());
+
+        return view('results', [
+            'productsView' => session()->get('products_view'),
+            'products' => $finalResult,
+            'categories' => Category::roots(),
+            'query' => $searchQuery,
+            'time' => round(microtime(true) - $start, 5),
             'results_count' => $results->count()
         ]);
     }
@@ -164,7 +226,7 @@ class SearchController extends Controller
         //max price
         if ($maxPriceQuery !== null && floatval($maxPriceQuery) > 0){
             $maxPrice = floatval($maxPriceQuery);
-            $filteredCollection = $collection->filter(function ($product) use ($maxPrice) {
+            $filteredCollection = $filteredCollection->filter(function ($product) use ($maxPrice) {
                 return $product->price_from <= floatval($maxPrice);
             });
         }

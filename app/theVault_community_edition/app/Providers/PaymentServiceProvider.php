@@ -3,7 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use App\Marketplace\Payment\{Payment, Escrow, Coin, BitcoinPayment};
+use App\Marketplace\Payment\{Payment, Escrow, Coin, StubCoin};
 
 
 class PaymentServiceProvider extends ServiceProvider
@@ -21,7 +21,8 @@ class PaymentServiceProvider extends ServiceProvider
         });
         // Return coin class
         $this -> app -> singleton(Coin::class, function($app){
-            return new BitcoinPayment();
+            // Simulation only; real coins will be re-enabled later
+            return new StubCoin();
         });
     }
 
