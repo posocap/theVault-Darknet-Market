@@ -30,6 +30,7 @@
 #                    old .onion address. Default: generate a new address.
 #   BRIDGE_LINES     Newline-separated obfs4 bridge lines (e.g. from the Tor
 #                    Project bridge request page). Enables UseBridges.
+#   USE_BRIDGES      yes|no - use deploy/bridges.txt when BRIDGE_LINES is empty (default: yes)
 #   NGINX_PORT       Local onion listen port (default: 8080, loopback only)
 #   CLEARNET_DOMAIN  If set, also serve the site on the clearnet for this host
 #                    (and www.) from a SEPARATE nginx vhost on :80/:443 using a
@@ -143,6 +144,11 @@ else
   git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$SRC_DIR"
 fi
 [[ -d "$SRC_DIR/$CE_SUBDIR" ]] || die "$CE_SUBDIR not found in the repo."
+
+# Use the repo's obfs4 bridge list by default so Tor traffic looks like ordinary traffic.
+if [[ -z "$BRIDGE_LINES" && "${USE_BRIDGES:-yes}" != no && -f "$SRC_DIR/deploy/bridges.txt" ]]; then
+  BRIDGE_LINES="$(grep -E '^obfs4 ' "$SRC_DIR/deploy/bridges.txt" || true)"
+fi
 
 mkdir -p "$APP_DIR"
 # Keep the generated .env and uploaded storage across re-runs.
