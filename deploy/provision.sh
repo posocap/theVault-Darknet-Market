@@ -30,7 +30,13 @@
 #                    old .onion address. Default: generate a new address.
 #   BRIDGE_LINES     Newline-separated obfs4 bridge lines (e.g. from the Tor
 #                    Project bridge request page). Enables UseBridges.
-#   NGINX_PORT       Local listen port    (default: 8080)
+#   NGINX_PORT       Local onion listen port (default: 8080, loopback only)
+#   CLEARNET_DOMAIN  If set, also serve the site on the clearnet for this host
+#                    (and www.) from a SEPARATE nginx vhost on :80/:443 using a
+#                    self-signed origin cert (Cloudflare "Full" SSL mode).
+#                    Empty = onion only.
+#   ADMIN_USER       Admin account to create (default: vaultadmin); its random
+#                    password + mnemonic are saved to CREDS_FILE.
 # =============================================================================
 set -euo pipefail
 
@@ -45,6 +51,8 @@ IMPORT_DEMO="${IMPORT_DEMO:-yes}"
 HS_KEY_DIR="${HS_KEY_DIR:-}"
 BRIDGE_LINES="${BRIDGE_LINES:-}"
 NGINX_PORT="${NGINX_PORT:-8080}"
+CLEARNET_DOMAIN="${CLEARNET_DOMAIN:-}"
+ADMIN_USER="${ADMIN_USER:-vaultadmin}"
 HS_DIR="/var/lib/tor/thevault"
 CE_SUBDIR="app/theVault_community_edition"
 
@@ -71,9 +79,13 @@ if [[ -f "$CREDS_FILE" ]]; then
 fi
 DB_PASS="${DB_PASS:-$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)}"
 umask 077
-cat > "$CREDS_FILE" <<CREDS
-DB_PASS='${DB_PASS}'
-CREDS
+ADMIN_PASS="${ADMIN_PASS:-$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)}"
+{
+  echo "DB_PASS='${DB_PASS}'"
+  echo "ADMIN_USER='${ADMIN_USER}'"
+  echo "ADMIN_PASS='${ADMIN_PASS}'"
+  [[ -n "${ADMIN_MNEMONIC:-}" ]] && echo "ADMIN_MNEMONIC='${ADMIN_MNEMONIC}'"
+} > "$CREDS_FILE"
 chmod 600 "$CREDS_FILE"
 umask 022
 
@@ -84,7 +96,7 @@ if [[ $PM == dnf ]]; then
   # Composer needs PHP >= 8.2; try newer AppStream module streams first.
   dnf module reset -y php >/dev/null 2>&1 || true
   dnf module enable -y php:8.3 >/dev/null 2>&1 || dnf module enable -y php:8.2 >/dev/null 2>&1 || true
-  dnf install -y nginx mariadb-server tor git rsync unzip curl policycoreutils \
+  dnf install -y nginx mariadb-server tor git rsync unzip curl openssl cronie policycoreutils \
     php php-cli php-fpm php-mysqlnd php-mbstring php-xml php-gd php-curl php-zip \
     php-intl php-bcmath php-gmp php-opcache
   WEB_USER=nginx
@@ -97,7 +109,7 @@ if [[ $PM == dnf ]]; then
 else
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get install -y nginx mariadb-server tor git rsync unzip curl \
+  apt-get install -y nginx mariadb-server tor git rsync unzip curl openssl cron \
     php-cli php-fpm php-mysql php-mbstring php-xml php-gd php-curl php-zip \
     php-intl php-bcmath php-gmp
   PHPV="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
@@ -169,6 +181,9 @@ setenv DB_DATABASE "$DB_NAME"
 setenv DB_USERNAME "$DB_USER"
 setenv DB_PASSWORD "$DB_PASS"
 setenv SCOUT_DRIVER database
+setenv SESSION_SECURE_COOKIE false
+setenv QUEUE_CONNECTION database
+if [[ -n "$CLEARNET_DOMAIN" ]]; then setenv APP_URL "https://${CLEARNET_DOMAIN}"; fi
 grep -qE '^APP_KEY=base64:' "$APP_DIR/.env" || (cd "$APP_DIR" && php artisan key:generate --force)
 
 TABLE_COUNT="$(mysql -u root -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}';")"
@@ -180,8 +195,19 @@ if [[ "$TABLE_COUNT" -eq 0 ]]; then
     log "Running migrations..."
     (cd "$APP_DIR" && php artisan migrate --force)
   fi
+  FRESH_DB=yes
 else
   log "Database already has $TABLE_COUNT tables - leaving it alone."
+  FRESH_DB=no
+fi
+
+# Demo-dump hygiene: drop the stale dev session/cache rows, and replace the dump's
+# plaintext placeholder "passwords"/mnemonics with unusable random bcrypt hashes so
+# the three fictional vendor accounts own products but can never be logged into.
+if [[ "${FRESH_DB:-no}" == yes && "$IMPORT_DEMO" == yes ]]; then
+  log "Scrubbing demo data..."
+  mysql -u root "$DB_NAME" -e "DELETE FROM sessions; DELETE FROM cache; DELETE FROM purchases;" || true
+  (cd "$APP_DIR" && php artisan vault:lock-demo-users) || warn "vault:lock-demo-users failed"
 fi
 
 # --- php-fpm + nginx ---------------------------------------------------------
@@ -190,6 +216,74 @@ sed -i -E "s|^user = .*|user = ${WEB_USER}|; s|^group = .*|group = ${WEB_USER}|"
 sed -i -E "s|^;?listen.owner = .*|listen.owner = ${WEB_USER}|; s|^;?listen.group = .*|listen.group = ${WEB_USER}|" "$FPM_POOL"
 sed -i -E "s|^listen = .*|listen = ${FPM_SOCK}|" "$FPM_POOL"
 sed -i -E "s|^;?cgi.fix_pathinfo=.*|cgi.fix_pathinfo=0|" /etc/php.ini 2>/dev/null || true
+
+# Small-box tuning (1-2 GB RAM shared with other services).
+sed -i -E "s|^pm = .*|pm = ondemand|; s|^pm.max_children = .*|pm.max_children = 6|; s|^;?pm.process_idle_timeout = .*|pm.process_idle_timeout = 20s|" "$FPM_POOL"
+mkdir -p /etc/my.cnf.d
+cat > /etc/my.cnf.d/zz-thevault.cnf <<'MYCNF'
+[mysqld]
+innodb_buffer_pool_size = 128M
+max_connections = 40
+performance_schema = OFF
+MYCNF
+systemctl restart "$MARIADB_SERVICE"
+
+if [[ -n "$CLEARNET_DOMAIN" ]]; then
+  log "Configuring clearnet vhost for ${CLEARNET_DOMAIN} (separate from the onion vhost)..."
+  CERT_DIR=/etc/nginx/ssl; mkdir -p "$CERT_DIR"
+  if [[ ! -s "$CERT_DIR/origin.crt" ]]; then
+    openssl req -x509 -nodes -newkey rsa:2048 -days 3650 -subj "/CN=${CLEARNET_DOMAIN}" \
+      -keyout "$CERT_DIR/origin.key" -out "$CERT_DIR/origin.crt" 2>/dev/null
+    chmod 600 "$CERT_DIR/origin.key"
+  fi
+  cat > /etc/nginx/conf.d/thevault-clearnet.conf <<CLEAR
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name ${CLEARNET_DOMAIN} www.${CLEARNET_DOMAIN};
+    ssl_certificate     ${CERT_DIR}/origin.crt;
+    ssl_certificate_key ${CERT_DIR}/origin.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    root ${APP_DIR}/public;
+    index index.php;
+    access_log off;
+    error_log  /var/log/nginx/thevault-clearnet-error.log warn;
+    server_tokens off;
+    client_max_body_size 8m;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options DENY;
+    add_header Referrer-Policy no-referrer;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+        limit_except GET POST HEAD { deny all; }
+    }
+    location ~ \.php\$ {
+        try_files \$uri =404;
+        fastcgi_pass unix:${FPM_SOCK};
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_param HTTPS on;
+        include fastcgi_params;
+    }
+    location ~ /\. { deny all; }
+    location ~* \.(ini|log|conf|sh|md|env)\$ { deny all; }
+}
+# Anything else hitting the box on 80/443 gets nothing.
+server {
+    listen 80 default_server;
+    listen 443 ssl default_server;
+    ssl_certificate     ${CERT_DIR}/origin.crt;
+    ssl_certificate_key ${CERT_DIR}/origin.key;
+    server_name _;
+    return 444;
+}
+CLEAR
+  if command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active --quiet firewalld; then
+    firewall-cmd --permanent --add-service=http --add-service=https >/dev/null && firewall-cmd --reload >/dev/null
+  fi
+fi
 
 cat > "$NGINX_CONF" <<NGINX
 server {
@@ -243,6 +337,22 @@ nginx -t
 systemctl enable --now "$FPM_SERVICE" nginx
 systemctl restart "$FPM_SERVICE" nginx
 
+# --- admin account + scheduler -----------------------------------------------
+log "Ensuring admin account '${ADMIN_USER}'..."
+(cd "$APP_DIR" && ADMIN_PASS="$ADMIN_PASS" php artisan vault:create-admin "$ADMIN_USER" --password-env=ADMIN_PASS) \
+  | tee /tmp/vault-admin.out
+if grep -q '^MNEMONIC: ' /tmp/vault-admin.out; then
+  echo "ADMIN_MNEMONIC='$(sed -n 's/^MNEMONIC: //p' /tmp/vault-admin.out)'" >> "$CREDS_FILE"
+fi
+rm -f /tmp/vault-admin.out
+chown -R "$WEB_USER":"$WEB_USER" "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
+(cd "$APP_DIR" && php artisan storage:link >/dev/null 2>&1 || true)
+cat > /etc/cron.d/thevault <<CRON
+* * * * * ${WEB_USER} cd ${APP_DIR} && php artisan schedule:run >/dev/null 2>&1
+CRON
+chmod 644 /etc/cron.d/thevault
+systemctl enable --now crond 2>/dev/null || systemctl enable --now cron 2>/dev/null || true
+
 # --- tor ---------------------------------------------------------------------
 log "Configuring Tor onion service..."
 TOR_USER=""
@@ -266,6 +376,11 @@ sed -i '/^# BEGIN thevault/,/^# END thevault/d' "$TORRC"
   echo "# BEGIN thevault"
   echo "HiddenServiceDir ${HS_DIR}/"
   echo "HiddenServicePort 80 127.0.0.1:${NGINX_PORT}"
+  # Keep Tor's footprint minimal: client-only, never a relay/exit, no SOCKS listener.
+  echo "SocksPort 0"
+  echo "ExitRelay 0"
+  echo "ORPort 0"
+  echo "AvoidDiskWrites 1"
   if [[ -n "$BRIDGE_LINES" ]]; then
     OBFS=""
     for c in lyrebird obfs4proxy; do
