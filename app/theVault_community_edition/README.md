@@ -5,8 +5,8 @@ Here you will find a fully functional darknet market/store.
 
 ## What's included?
 
-1. A fully functional, darknet-ready market based on PHP 8.3 and Laravel 11.
-2. Support for Laravel 12, when it launches at the end of this month (February, 2025).
+1. A fully functional, darknet-ready market based on PHP 8.3 and Laravel 12.
+2. Simulation-only payments (no cryptocurrency daemons required) for demo use.
 3. Admin panel.
 4. Multi-seller support.
 5. Captchas.
