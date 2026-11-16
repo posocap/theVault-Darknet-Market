@@ -114,7 +114,7 @@ I offer freelance support as a maintainer or developer for **theVault**. This in
 ## 📅 Future Updates
 
 - The project now runs on **Laravel 12**. Forks on Laravel 11 should upgrade to stay current.
-- Known dependency note: `phpseclib` 2.x (used by the PGP/RSA helpers) has published security advisories and has no patched 2.x release; replacing it is planned.
+- Crypto dependencies now use `phpseclib` 3.x and `openpgp-php` 0.7; `paragonie/sodium_compat` provides libsodium functions when the PHP extension is absent. `composer audit` is clean.
 
 ## 📞 Contact
 
