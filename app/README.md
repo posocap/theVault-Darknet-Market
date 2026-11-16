@@ -114,7 +114,40 @@ I offer freelance support as a maintainer or developer for **theVault**. This in
 ## 📅 Future Updates
 
 - The project now runs on **Laravel 12**. Forks on Laravel 11 should upgrade to stay current.
-- Crypto dependencies now use `phpseclib` 3.x and `openpgp-php` 0.7; `paragonie/sodium_compat` provides libsodium functions when the PHP extension is absent. `composer audit` is clean.
+- See **Security & Versions** below for what changed and the exact versions.
+
+## 🔒 Security & Versions
+
+**Current stack (November 2026)**
+
+| Component | Version | Notes |
+| --- | --- | --- |
+| Laravel | 12.72.0 | upgraded from 11.57.1 |
+| PHP | 8.3.36 | patched release; the installers reject vulnerable builds. 8.3 receives security fixes until 31 Dec 2027. PHP 8.4 and 8.5 (latest 8.5.12) are supported by Laravel 12 and are the next step |
+| phpseclib | 3.0.58 | was 2.0.56, which has published advisories and no patched 2.x release |
+| openpgp-php | 0.7.0 | was 0.5.0 (required phpseclib 2.x) |
+| paragonie/sodium_compat | 2.5.2 | new: provides libsodium functions without the PHP extension (needed for sign-up/admin keypairs) |
+| paragonie/constant_time_encoding | 3.1.4 | |
+| lcobucci/jwt | 5.6.1 | |
+| nwidart/laravel-modules | 13.3.0 | |
+| graham-campbell/markdown | 16.1.0 | |
+| laravel/scout | 10.25.0 | database driver; no Elasticsearch needed |
+| laravel/tinker | 2.11.1 | |
+| guzzlehttp/guzzle | 7.16.1 | |
+| Tor | 0.4.9.15 | current stable; includes the 2026 DoS fixes |
+| MariaDB | 10.5.29 | listens on localhost only |
+| nginx | 1.20.1 | distro build with backported fixes |
+
+**Security changes**
+
+- Dependencies: `phpseclib` 3.x replaces 2.x, and the unused, abandoned `paragonie/easyrsa` was removed. Composer's insecure-package blocking is on and `composer audit` reports no advisories.
+- Application: payments are simulation-only; throttling, one-time captcha and ownership checks added; `info.php` removed; `APP_DEBUG=false`; `.env` is mode 640.
+- Web server: `server_tokens off`, `X-Powered-By` removed, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy`, and cross-origin isolation headers. Dotfiles, logs and config files are denied; access logging is off. The clearnet origin accepts connections only from Cloudflare's published ranges (refreshed weekly); anything else is refused.
+- PHP: `expose_php` off; `exec`, `shell_exec`, `system`, `passthru`, `popen`, `proc_open` and `pcntl_exec` disabled for the web pool.
+- Edge (Cloudflare): TLS 1.2 minimum, TLS 1.3 on, always-HTTPS, HSTS (6 months), DNSSEC enabled.
+- Tor: client-only (no relay, no exit, no SOCKS or DNS port, so no DNS leaks), obfs4 bridges, onion-service intro-point DoS defense and proof-of-work defense enabled.
+- Host: MariaDB bound to localhost; SSH is key-only; unused firewall rules removed.
+- Known limitations: the database is MariaDB 10.5 (community end-of-life was June 2025; the distro keeps backporting fixes); SELinux is disabled on the demo host. Both are on the upgrade list.
 
 ## 📞 Contact
 
