@@ -128,7 +128,7 @@ This pulls the latest code, keeps your `.env`, database and uploads, and only do
 python3 deploy/check_site.py https://your.domain      # or http://127.0.0.1:8080 on the server
 ```
 
-It crawls every public page and verifies every image, stylesheet, script and font; it exits non-zero if anything returns an error or a file is missing.
+It crawls every public page and verifies every image, stylesheet, script and font; it exits non-zero if anything returns an error, a file is missing, or a listing is showing the grey "no picture" placeholder.
 
 **Demo images and data**
 

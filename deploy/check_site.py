@@ -26,6 +26,7 @@ def norm(u, page):
     return u if p.scheme in ("http", "https") else None
 
 pages, assets = collections.OrderedDict(), {}
+placeholders = []
 queue = [BASE + "/"]
 seen = set(queue)
 while queue:
@@ -35,6 +36,8 @@ while queue:
     if status != 200 or "html" not in ctype:
         continue
     html = body.decode("utf-8", "replace")
+    if "img/product.png" in html:
+        placeholders.append(url)   # a listing shows the grey "no picture" fallback
     for m in re.finditer(r'(?:src|href|data-src|poster)\s*=\s*["\']([^"\']+)["\']', html, re.I):
         raw = m.group(1)
         if raw.startswith(("javascript:", "mailto:", "data:", "#")):
@@ -80,4 +83,7 @@ for u, s in bad_pages.items():
 print(f"BAD ASSETS: {len(bad_assets)}")
 for st, ct, u, src in bad_assets:
     print("  ", st, u, "<- on", src)
-sys.exit(1 if bad_pages or bad_assets else 0)
+print(f"PAGES SHOWING THE 'NO PICTURE' PLACEHOLDER: {len(placeholders)}")
+for u in placeholders:
+    print("  ", u)
+sys.exit(1 if bad_pages or bad_assets or placeholders else 0)
