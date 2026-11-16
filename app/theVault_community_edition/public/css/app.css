@@ -16784,3 +16784,9 @@ table.product td {
   padding: 0.4rem !important;
 }
 
+
+/* Vendor profile banners used by the demo data (profilebg values are used as class names). */
+.profile-bg.dna_bg1\.jpg, .profile-bg.dna_bg2\.jpg, .profile-bg.dna_bg3\.jpg { background-size: cover; background-position: center; }
+.profile-bg.dna_bg1\.jpg { background-image: url(/storage/dna_bg1.jpg); }
+.profile-bg.dna_bg2\.jpg { background-image: url(/storage/dna_bg2.jpg); }
+.profile-bg.dna_bg3\.jpg { background-image: url(/storage/dna_bg3.jpg); }

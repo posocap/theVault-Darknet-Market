@@ -122,7 +122,19 @@ This pulls the latest code, keeps your `.env`, database and uploads, and only do
 
 **4. Back up** `/var/lib/tor/thevault` (your onion key, which *is* your address) and `/root/.thevault-credentials`.
 
-Notes on the demo images: product pictures are referenced as `/storage/<file>` and live in `storage/app/public`. If you add your own, put them there; `provision.sh` and `update.sh` never overwrite existing files. Only the Trace Thorn portrait ships in this repo so far; other demo products show a missing-image icon until you add their pictures (`artist.jpg`, `athlete.jpg`, `iq.jpg`, `music.jpg`, `mutate.jpg`, `rounded.jpg`, `tall.jpg`, `dna_bg1-3.jpg`).
+**5. Check your install (no broken pages or images):**
+
+```bash
+python3 deploy/check_site.py https://your.domain      # or http://127.0.0.1:8080 on the server
+```
+
+It crawls every public page and verifies every image, stylesheet, script and font; it exits non-zero if anything returns an error or a file is missing.
+
+**Demo images and data**
+
+- Product pictures are referenced as `/storage/<file>` and live in `storage/app/public`. The demo set ships in `app/example_files/demo_images/` and is installed by `provision.sh`/`update.sh` (existing files are never overwritten, so you can replace any picture with your own). Trace Thorn's portrait is the original artwork; the other pictures are free-to-use photos from [Unsplash](https://unsplash.com/license).
+- `app/example_files/demo_fixups.sql` (already appended to the demo dump) gives every product a price and shipping option and enables the simulated `stb` coin, so product pages look complete.
+- The "Official Mirrors" box on the home page is filled from `MARKETPLACE_MIRRORS` in `.env` (`provision.sh` sets it to your onion address). The "disable JavaScript" warning is only shown to visitors browsing through the `.onion` address.
 
 ---
 
