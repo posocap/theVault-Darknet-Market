@@ -28,10 +28,11 @@ final class ChannelMakeCommand extends GeneratorCommand
      */
     protected $description = 'Create a new channel class for the specified module.';
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.channels.namespace')
-            ?? ltrim(config('modules.paths.generator.channels.path', 'Broadcasting'), config('modules.paths.app_folder', ''));
+            ?? $this->strip_app_folder(config('modules.paths.generator.channels.path', 'Broadcasting'));
     }
 
     /**
@@ -39,9 +40,10 @@ final class ChannelMakeCommand extends GeneratorCommand
      *
      * @return string
      */
+    #[\Override]
     protected function getTemplateContents()
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub('/channel.stub', [
             'NAMESPACE' => $this->getClassNamespace($module),
@@ -54,9 +56,10 @@ final class ChannelMakeCommand extends GeneratorCommand
      *
      * @return string
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $channelPath = GenerateConfigReader::read('channels');
 
@@ -74,8 +77,9 @@ final class ChannelMakeCommand extends GeneratorCommand
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [

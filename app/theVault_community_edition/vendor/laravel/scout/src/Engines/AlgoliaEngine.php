@@ -2,11 +2,11 @@
 
 namespace Laravel\Scout\Engines;
 
-use Exception;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\LazyCollection;
 use Laravel\Scout\Builder;
 use Laravel\Scout\Contracts\UpdatesIndexSettings;
+use Laravel\Scout\Exceptions\NotSupportedException;
 
 /**
  * @template TAlgoliaClient of object
@@ -129,19 +129,31 @@ abstract class AlgoliaEngine extends Engine implements UpdatesIndexSettings
      */
     protected function filters(Builder $builder)
     {
-        $wheres = collect($builder->wheres)->map(function ($value, $key) {
-            return $key.'='.$value;
-        })->values();
+        $wheres = collect($builder->wheres)
+            ->map(fn ($value, $key) => $key.'='.$value)
+            ->values();
 
-        return $wheres->merge(collect($builder->whereIns)->map(function ($values, $key) {
+        $whereIns = collect($builder->whereIns)->map(function ($values, $key) {
             if (empty($values)) {
                 return '0=1';
             }
 
-            return collect($values)->map(function ($value) use ($key) {
-                return $key.'='.$value;
-            })->all();
-        })->values())->values()->all();
+            return collect($values)
+                ->map(fn ($value) => $key.'='.$value)
+                ->all();
+        })->values();
+
+        $whereNotIns = collect($builder->whereNotIns)->flatMap(function ($values, $key) {
+            if (empty($values)) {
+                return [];
+            }
+
+            return collect($values)
+                ->map(fn ($value) => $key.'!='.$value)
+                ->all();
+        });
+
+        return $wheres->merge($whereIns)->merge($whereNotIns)->values()->all();
     }
 
     /**
@@ -173,23 +185,21 @@ abstract class AlgoliaEngine extends Engine implements UpdatesIndexSettings
 
         $objectIdPositions = array_flip($objectIds);
 
-        return $model->getScoutModelsByIds(
-            $builder, $objectIds
-        )->filter(function ($model) use ($objectIds) {
-            return in_array($model->getScoutKey(), $objectIds);
-        })->map(function ($model) use ($results, $objectIdPositions) {
-            $result = $results['hits'][$objectIdPositions[$model->getScoutKey()]] ?? [];
+        return $model->getScoutModelsByIds($builder, $objectIds)
+            ->filter(fn ($model) => in_array($model->getScoutKey(), $objectIds))
+            ->map(function ($model) use ($results, $objectIdPositions) {
+                $result = $results['hits'][$objectIdPositions[$model->getScoutKey()]] ?? [];
 
-            foreach ($result as $key => $value) {
-                if (substr($key, 0, 1) === '_') {
-                    $model->withScoutMetadata($key, $value);
+                foreach ($result as $key => $value) {
+                    if (substr($key, 0, 1) === '_') {
+                        $model->withScoutMetadata($key, $value);
+                    }
                 }
-            }
 
-            return $model;
-        })->sortBy(function ($model) use ($objectIdPositions) {
-            return $objectIdPositions[$model->getScoutKey()];
-        })->values();
+                return $model;
+            })
+            ->sortBy(fn ($model) => $objectIdPositions[$model->getScoutKey()])
+            ->values();
     }
 
     /**
@@ -209,23 +219,22 @@ abstract class AlgoliaEngine extends Engine implements UpdatesIndexSettings
         $objectIds = collect($results['hits'])->pluck('objectID')->values()->all();
         $objectIdPositions = array_flip($objectIds);
 
-        return $model->queryScoutModelsByIds(
-            $builder, $objectIds
-        )->cursor()->filter(function ($model) use ($objectIds) {
-            return in_array($model->getScoutKey(), $objectIds);
-        })->map(function ($model) use ($results, $objectIdPositions) {
-            $result = $results['hits'][$objectIdPositions[$model->getScoutKey()]] ?? [];
+        return $model->queryScoutModelsByIds($builder, $objectIds)
+            ->cursor()
+            ->filter(fn ($model) => in_array($model->getScoutKey(), $objectIds))
+            ->map(function ($model) use ($results, $objectIdPositions) {
+                $result = $results['hits'][$objectIdPositions[$model->getScoutKey()]] ?? [];
 
-            foreach ($result as $key => $value) {
-                if (substr($key, 0, 1) === '_') {
-                    $model->withScoutMetadata($key, $value);
+                foreach ($result as $key => $value) {
+                    if (substr($key, 0, 1) === '_') {
+                        $model->withScoutMetadata($key, $value);
+                    }
                 }
-            }
 
-            return $model;
-        })->sortBy(function ($model) use ($objectIdPositions) {
-            return $objectIdPositions[$model->getScoutKey()];
-        })->values();
+                return $model;
+            })
+            ->sortBy(fn ($model) => $objectIdPositions[$model->getScoutKey()])
+            ->values();
     }
 
     /**
@@ -246,11 +255,11 @@ abstract class AlgoliaEngine extends Engine implements UpdatesIndexSettings
      * @param  array  $options
      * @return mixed
      *
-     * @throws \Exception
+     * @throws NotSupportedException
      */
     public function createIndex($name, array $options = [])
     {
-        throw new Exception('Algolia indexes are created automatically upon adding objects.');
+        throw new NotSupportedException('Algolia indexes are created automatically upon adding objects.');
     }
 
     /**

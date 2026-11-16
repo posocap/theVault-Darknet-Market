@@ -37,8 +37,9 @@ class ComponentViewMakeCommand extends GeneratorCommand
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -50,6 +51,7 @@ class ComponentViewMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getTemplateContents()
     {
         return (new Stub('/component-view.stub', ['QUOTE' => Inspiring::quote()]))->render();
@@ -58,9 +60,10 @@ class ComponentViewMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
         $factoryPath = GenerateConfigReader::read('component-view');
 
         return $path.$factoryPath->getPath().'/'.$this->getFileName();

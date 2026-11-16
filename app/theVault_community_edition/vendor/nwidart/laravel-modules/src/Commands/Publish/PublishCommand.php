@@ -21,19 +21,24 @@ class PublishCommand extends BaseCommand
      */
     protected $description = 'Publish a module\'s assets to the application';
 
+    /**
+     * @param  string  $name
+     */
+    #[\Override]
     public function executeAction($name): void
     {
         $module = $this->getModuleModel($name);
 
         $this->components->task("Publishing Assets <fg=cyan;options=bold>{$module->getName()}</> Module", function () use ($module) {
-            with(new AssetPublisher($module))
-                ->setRepository($this->laravel['modules'])
+            (new AssetPublisher($module))
+                ->setRepository($this->moduleRepository())
                 ->setConsole($this)
                 ->publish();
         });
 
     }
 
+    #[\Override]
     public function getInfo(): ?string
     {
         return 'Publishing module asset files ...';

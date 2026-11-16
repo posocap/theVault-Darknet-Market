@@ -19,7 +19,10 @@ class Runner implements RunableInterface
 
     /**
      * Run the given command.
+     *
+     * @return void
      */
+    #[\Override]
     public function run(string $command)
     {
         passthru($command);

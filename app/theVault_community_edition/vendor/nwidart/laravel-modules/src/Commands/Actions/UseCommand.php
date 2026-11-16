@@ -20,15 +20,20 @@ class UseCommand extends BaseCommand
      */
     protected $description = 'Use the specified module.';
 
+    /**
+     * @param  string  $name
+     */
+    #[\Override]
     public function executeAction($name): void
     {
         $module = $this->getModuleModel($name);
 
         $this->components->task("Using <fg=cyan;options=bold>{$module->getName()}</> Module", function () use ($module) {
-            $this->laravel['modules']->setUsed($module);
+            $this->moduleRepository()->setUsed($module);
         });
     }
 
+    #[\Override]
     public function getInfo(): ?string
     {
         return 'Using Module ...';

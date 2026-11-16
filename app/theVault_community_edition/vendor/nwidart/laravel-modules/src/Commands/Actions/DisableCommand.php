@@ -27,6 +27,10 @@ class DisableCommand extends BaseCommand
      */
     protected $description = 'Disable an array of modules.';
 
+    /**
+     * @param  string  $name
+     */
+    #[\Override]
     public function executeAction($name): void
     {
         $module = $this->getModuleModel($name);
@@ -40,6 +44,7 @@ class DisableCommand extends BaseCommand
         });
     }
 
+    #[\Override]
     public function getInfo(): ?string
     {
         return 'Disabling module ...';

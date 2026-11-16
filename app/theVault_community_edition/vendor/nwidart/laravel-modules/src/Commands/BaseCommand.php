@@ -7,7 +7,11 @@ use Illuminate\Console\ConfirmableTrait;
 use Illuminate\Console\Prohibitable;
 use Illuminate\Contracts\Console\PromptsForMissingInput;
 use Illuminate\Support\Collection;
+use Laravel\Prompts\Exceptions\NonInteractiveValidationException;
 use Nwidart\Modules\Contracts\ConfirmableCommand;
+use Nwidart\Modules\Exceptions\ModuleNotFoundException;
+use Nwidart\Modules\Module;
+use Nwidart\Modules\Traits\InteractsWithModuleRepository;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -18,9 +22,15 @@ use function Laravel\Prompts\multisearch;
 abstract class BaseCommand extends Command implements PromptsForMissingInput
 {
     use ConfirmableTrait;
+    use InteractsWithModuleRepository;
     use Prohibitable;
 
     public const ALL = 'All';
+
+    /**
+     * Whether the action failed for at least one module during this run.
+     */
+    private bool $hasFailures = false;
 
     /**
      * Create a new console command instance.
@@ -52,6 +62,16 @@ abstract class BaseCommand extends Command implements PromptsForMissingInput
         }
     }
 
+    /**
+     * Run the action for one module.
+     *
+     * Return false or a non-zero exit code (or call markAsFailed()) when the action
+     * failed for this module: the remaining modules still run, and the command exits
+     * with a failure status.
+     *
+     * @param  string  $name
+     * @return mixed
+     */
     abstract public function executeAction($name);
 
     public function getInfo(): ?string
@@ -71,16 +91,88 @@ abstract class BaseCommand extends Command implements PromptsForMissingInput
 
     /**
      * Execute the console command.
+     *
+     * @return int
      */
     public function handle()
     {
-        if ($this instanceof ConfirmableCommand) {
-            if ($this->isProhibited() ||
-                ! $this->confirmToProceed($this->getConfirmableLabel(), $this->getConfirmableCallback())) {
-                return Command::FAILURE;
-            }
+        if (! $this->hasModulesToRun()) {
+            return Command::FAILURE;
         }
 
+        $this->validateModules();
+
+        if (! $this->canProceed()) {
+            return Command::FAILURE;
+        }
+
+        $this->executeModules();
+
+        return $this->hasFailures() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    /**
+     * Check that a module or --all was given. Without interaction there is no prompt,
+     * so an empty module argument would otherwise silently do nothing.
+     */
+    protected function hasModulesToRun(): bool
+    {
+        if ($this->option(strtolower(self::ALL)) || ! empty($this->argument('module'))) {
+            return true;
+        }
+
+        $this->components->error('No module given. Pass a module name or --all.');
+
+        return false;
+    }
+
+    /**
+     * Check that every given module exists before any action runs, so a misspelled
+     * name does not fail halfway, after the modules before it were processed.
+     *
+     * @throws ModuleNotFoundException
+     */
+    protected function validateModules(): void
+    {
+        foreach ((array) $this->argument('module') as $module) {
+            $this->getModuleModel($module);
+        }
+    }
+
+    /**
+     * Mark the current run as failed, so the command exits with a failure status.
+     */
+    protected function markAsFailed(): void
+    {
+        $this->hasFailures = true;
+    }
+
+    /**
+     * Whether the action failed for at least one module during this run.
+     */
+    protected function hasFailures(): bool
+    {
+        return $this->hasFailures;
+    }
+
+    /**
+     * Run the prohibition check and the production confirmation of a confirmable command.
+     */
+    protected function canProceed(): bool
+    {
+        if (! $this instanceof ConfirmableCommand) {
+            return true;
+        }
+
+        return ! $this->isProhibited()
+            && $this->confirmToProceed($this->getConfirmableLabel(), $this->getConfirmableCallback());
+    }
+
+    /**
+     * Run the action for each of the given modules.
+     */
+    protected function executeModules(): void
+    {
         if (! is_null($info = $this->getInfo())) {
             $this->components->info($info);
         }
@@ -88,27 +180,65 @@ abstract class BaseCommand extends Command implements PromptsForMissingInput
         $modules = (array) $this->argument('module');
 
         foreach ($modules as $module) {
-            $this->executeAction($module);
+            $result = $this->executeAction($module);
+
+            if ($result === false || (is_int($result) && $result !== Command::SUCCESS)) {
+                $this->markAsFailed();
+            }
         }
     }
 
-    protected function promptForMissingArguments(InputInterface $input, OutputInterface $output): void
+    /**
+     * Resolve --all into the module argument. This runs for every input, unlike
+     * promptForMissingArguments(), which is skipped with --no-interaction or without a TTY.
+     */
+    #[\Override]
+    protected function initialize(InputInterface $input, OutputInterface $output): void
     {
-        $modules = $this->hasOption('direction')
-            ? array_keys($this->laravel['modules']->getOrdered($input->hasOption('direction')))
-            : array_keys($this->laravel['modules']->all());
+        parent::initialize($input, $output);
+
+        $this->hasFailures = false;
 
         if ($input->getOption(strtolower(self::ALL))) {
-            $input->setArgument('module', $modules);
+            $input->setArgument('module', $this->getModuleNames($input));
+        }
+    }
 
+    #[\Override]
+    protected function promptForMissingArguments(InputInterface $input, OutputInterface $output): void
+    {
+        // --all was already resolved in initialize()
+        if ($input->getOption(strtolower(self::ALL)) || ! empty($input->getArgument('module'))) {
             return;
         }
 
-        if (! empty($input->getArgument('module'))) {
+        $modules = $this->getModuleNames($input);
+
+        try {
+            $selected_item = $this->promptForModules($modules);
+        } catch (NonInteractiveValidationException) {
+            // Prompts cannot ask without a TTY, even when --no-interaction is not given.
+            // handle() then reports the missing module.
             return;
         }
 
-        $selected_item = multisearch(
+        $input->setArgument(
+            'module',
+            value: in_array(self::ALL, $selected_item)
+                ? $modules
+                : $selected_item
+        );
+    }
+
+    /**
+     * Ask which modules to use.
+     *
+     * @param  array<int, string>  $modules
+     * @return array<int, string>
+     */
+    private function promptForModules(array $modules): array
+    {
+        return multisearch(
             label: 'Select Modules',
             options: function (string $search_value) use ($modules) {
                 return collect([
@@ -120,20 +250,35 @@ abstract class BaseCommand extends Command implements PromptsForMissingInput
             },
             required: 'You must select at least one module',
         );
-
-        $input->setArgument(
-            'module',
-            value: in_array(self::ALL, $selected_item)
-                ? $modules
-                : $selected_item
-        );
     }
 
+    /**
+     * Get the names of the modules that "all" stands for. Commands with a --direction
+     * option get the enabled modules sorted by priority in that direction.
+     *
+     * @return array<int, string>
+     */
+    protected function getModuleNames(InputInterface $input): array
+    {
+        if (! $this->getDefinition()->hasOption('direction')) {
+            return array_keys($this->moduleRepository()->all());
+        }
+
+        $direction = $input->getOption('direction')
+            ?? $this->getDefinition()->getOption('direction')->getDefault();
+
+        return array_keys($this->moduleRepository()->getOrdered((string) $direction));
+    }
+
+    /**
+     * @param  Module|string  $name
+     * @return Module
+     */
     protected function getModuleModel($name)
     {
-        return $name instanceof \Nwidart\Modules\Module
+        return $name instanceof Module
             ? $name
-            : $this->laravel['modules']->findOrFail($name);
+            : $this->moduleRepository()->findOrFail($name);
     }
 
     private function configureConfirmable(): void

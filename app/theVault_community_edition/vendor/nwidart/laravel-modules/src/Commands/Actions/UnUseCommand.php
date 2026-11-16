@@ -20,15 +20,20 @@ class UnUseCommand extends BaseCommand
      */
     protected $description = 'Forget the used module with module:use';
 
+    /**
+     * @param  string  $name
+     */
+    #[\Override]
     public function executeAction($name): void
     {
         $module = $this->getModuleModel($name);
 
         $this->components->task("Forget Using <fg=cyan;options=bold>{$module->getName()}</> Module", function () use ($module) {
-            $this->laravel['modules']->forgetUsed($module);
+            $this->moduleRepository()->forgetUsed($module);
         });
     }
 
+    #[\Override]
     public function getInfo(): ?string
     {
         return 'Forget Using Module ...';

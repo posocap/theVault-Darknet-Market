@@ -39,9 +39,10 @@ class ControllerMakeCommand extends GeneratorCommand
      *
      * @return string
      */
+    #[\Override]
     public function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $controllerPath = GenerateConfigReader::read('controller');
 
@@ -51,9 +52,10 @@ class ControllerMakeCommand extends GeneratorCommand
     /**
      * @return string
      */
+    #[\Override]
     protected function getTemplateContents()
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub($this->getStubName(), [
             'MODULENAME' => $module->getStudlyName(),
@@ -65,15 +67,16 @@ class ControllerMakeCommand extends GeneratorCommand
             'MODULE' => $this->getModuleName(),
             'NAME' => $this->getModuleName(),
             'STUDLY_NAME' => $module->getStudlyName(),
-            'MODULE_NAMESPACE' => $this->laravel['modules']->config('namespace'),
+            'MODULE_NAMESPACE' => $this->moduleRepository()->config('namespace'),
         ]))->render();
     }
 
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -83,19 +86,21 @@ class ControllerMakeCommand extends GeneratorCommand
     }
 
     /**
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getOptions()
     {
         return [
             ['plain', 'p', InputOption::VALUE_NONE, 'Generate a plain controller', null],
             ['api', null, InputOption::VALUE_NONE, 'Exclude the create and edit methods from the controller.'],
             ['invokable', 'i', InputOption::VALUE_NONE, 'Generate a single method, invokable controller class'],
+            ['inertia', null, InputOption::VALUE_NONE, 'Generate an Inertia controller'],
         ];
     }
 
     /**
-     * @return array|string
+     * @return string
      */
     protected function getControllerName()
     {
@@ -108,18 +113,16 @@ class ControllerMakeCommand extends GeneratorCommand
         return $controller;
     }
 
-    /**
-     * @return array|string
-     */
-    private function getControllerNameWithoutNamespace()
+    private function getControllerNameWithoutNamespace(): string
     {
         return class_basename($this->getControllerName());
     }
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.controller.namespace')
-            ?? ltrim(config('modules.paths.generator.controller.path', 'Http/Controllers'), config('modules.paths.app_folder'));
+            ?? $this->strip_app_folder(config('modules.paths.generator.controller.path', 'Http/Controllers'));
     }
 
     /**
@@ -135,6 +138,8 @@ class ControllerMakeCommand extends GeneratorCommand
             $stub = '/controller-api.stub';
         } elseif ($this->option('invokable') === true) {
             $stub = '/controller.invokable.stub';
+        } elseif ($this->option('inertia') === true) {
+            $stub = '/controller-inertia.stub';
         } else {
             $stub = '/controller.stub';
         }

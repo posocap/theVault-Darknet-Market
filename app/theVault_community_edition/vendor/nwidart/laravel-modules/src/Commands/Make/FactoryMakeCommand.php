@@ -36,8 +36,9 @@ class FactoryMakeCommand extends GeneratorCommand
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -49,9 +50,10 @@ class FactoryMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getTemplateContents()
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub('/factory.stub', [
             'NAMESPACE' => $this->getClassNamespace($module),
@@ -63,9 +65,10 @@ class FactoryMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $factoryPath = GenerateConfigReader::read('factory');
 
@@ -91,10 +94,11 @@ class FactoryMakeCommand extends GeneratorCommand
     /**
      * Get default namespace.
      */
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.factory.namespace')
-            ?? ltrim(config('modules.paths.generator.factory.path', 'Database/Factories'), config('modules.paths.app_folder', ''));
+            ?? $this->strip_app_folder(config('modules.paths.generator.factory.path', 'Database/Factories'));
     }
 
     /**
@@ -102,10 +106,10 @@ class FactoryMakeCommand extends GeneratorCommand
      */
     public function getModelNamespace(): string
     {
-        $path = ltrim(config('modules.paths.generator.model.path', 'Entities'), config('modules.paths.app_folder', ''));
+        $path = $this->strip_app_folder(config('modules.paths.generator.model.path', 'Entities'));
 
         $path = str_replace('/', '\\', $path);
 
-        return $this->laravel['modules']->config('namespace').'\\'.$this->laravel['modules']->findOrFail($this->getModuleName()).'\\'.$path;
+        return $this->moduleRepository()->config('namespace').'\\'.$this->moduleRepository()->findOrFail($this->getModuleName()).'\\'.$path;
     }
 }

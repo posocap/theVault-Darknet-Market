@@ -1,0 +1,10 @@
+<?php
+
+namespace App;
+
+use FromPackage\SomeBaseClass;
+
+class UnresolvableClass extends SomeBaseClass
+{
+    // emmpty
+}

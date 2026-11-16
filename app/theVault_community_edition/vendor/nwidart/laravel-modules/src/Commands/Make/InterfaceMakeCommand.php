@@ -19,18 +19,20 @@ class InterfaceMakeCommand extends GeneratorCommand
 
     protected $description = 'Create a new interface class for the specified module.';
 
+    #[\Override]
     public function getDestinationFilePath(): string
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $filePath = GenerateConfigReader::read('interfaces')->getPath() ?? config('modules.paths.app_folder').'Interfaces';
 
         return $path.$filePath.'/'.$this->getInterfaceName().'.php';
     }
 
+    #[\Override]
     protected function getTemplateContents(): string
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub($this->getStubName(), [
             'CLASS_NAMESPACE' => $this->getClassNamespace($module),
@@ -38,6 +40,7 @@ class InterfaceMakeCommand extends GeneratorCommand
         ]))->render();
     }
 
+    #[\Override]
     protected function getArguments(): array
     {
         return [
@@ -46,26 +49,32 @@ class InterfaceMakeCommand extends GeneratorCommand
         ];
     }
 
+    #[\Override]
     protected function getOptions(): array
     {
         return [
-            ['force', 'f', InputOption::VALUE_NONE, 'su.'],
+            ['force', 'f', InputOption::VALUE_NONE, 'Overwrite the file if it already exists'],
         ];
     }
 
+    /**
+     * @return string|array<int, string>
+     */
     protected function getInterfaceName(): array|string
     {
         return Str::studly($this->argument('name'));
     }
 
-    private function getClassNameWithoutNamespace(): array|string
+    private function getClassNameWithoutNamespace(): string
     {
         return class_basename($this->getInterfaceName());
     }
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
-        return config('modules.paths.generator.interfaces.namespace', 'Interfaces');
+        return config('modules.paths.generator.interfaces.namespace')
+            ?? $this->strip_app_folder(config('modules.paths.generator.interfaces.path', 'Interfaces'));
     }
 
     protected function getStubName(): string

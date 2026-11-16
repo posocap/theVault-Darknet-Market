@@ -19,18 +19,20 @@ class ActionMakeCommand extends GeneratorCommand
 
     protected $description = 'Create a new action class for the specified module.';
 
+    #[\Override]
     public function getDestinationFilePath(): string
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $filePath = GenerateConfigReader::read('actions')->getPath() ?? config('modules.paths.app_folder').'Actions';
 
         return $path.$filePath.'/'.$this->getActionName().'.php';
     }
 
+    #[\Override]
     protected function getTemplateContents(): string
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub($this->getStubName(), [
             'CLASS_NAMESPACE' => $this->getClassNamespace($module),
@@ -38,6 +40,7 @@ class ActionMakeCommand extends GeneratorCommand
         ]))->render();
     }
 
+    #[\Override]
     protected function getArguments(): array
     {
         return [
@@ -46,27 +49,33 @@ class ActionMakeCommand extends GeneratorCommand
         ];
     }
 
+    #[\Override]
     protected function getOptions(): array
     {
         return [
             ['invokable', 'i', InputOption::VALUE_NONE, 'Generate an invokable action class', null],
-            ['force', 'f', InputOption::VALUE_NONE, 'su.'],
+            ['force', 'f', InputOption::VALUE_NONE, 'Overwrite the file if it already exists'],
         ];
     }
 
+    /**
+     * @return string|array<int, string>
+     */
     protected function getActionName(): array|string
     {
         return Str::studly($this->argument('name'));
     }
 
-    private function getClassNameWithoutNamespace(): array|string
+    private function getClassNameWithoutNamespace(): string
     {
         return class_basename($this->getActionName());
     }
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
-        return config('modules.paths.generator.actions.namespace', 'Actions');
+        return config('modules.paths.generator.actions.namespace')
+            ?? $this->strip_app_folder(config('modules.paths.generator.actions.path', 'Actions'));
     }
 
     protected function getStubName(): string

@@ -6,12 +6,15 @@ use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\LazyCollection;
 use Laravel\Scout\Builder;
+use Laravel\Scout\Exceptions\NotSupportedException;
 use stdClass;
 use Typesense\Client as Typesense;
 use Typesense\Collection as TypesenseCollection;
 use Typesense\Exceptions\ObjectAlreadyExists;
+use Typesense\Exceptions\ObjectNotFound;
 use Typesense\Exceptions\TypesenseClientError;
 
 class TypesenseEngine extends Engine
@@ -87,7 +90,10 @@ class TypesenseEngine extends Engine
                 $searchableData,
                 $model->scoutMetadata(),
             );
-        })->filter()->values()->all();
+        })
+            ->filter()
+            ->values()
+            ->all();
 
         if (! empty($objects)) {
             $this->importDocuments(
@@ -102,15 +108,17 @@ class TypesenseEngine extends Engine
      *
      * @param  TypesenseCollection  $collectionIndex
      * @param  array  $documents
-     * @param  string  $action
+     * @param  string|null  $action
      * @return \Illuminate\Support\Collection
      *
      * @throws \JsonException
      * @throws \Typesense\Exceptions\TypesenseClientError
      * @throws \Http\Client\Exception
      */
-    protected function importDocuments(TypesenseCollection $collectionIndex, array $documents, string $action = 'upsert'): Collection
+    protected function importDocuments(TypesenseCollection $collectionIndex, array $documents, ?string $action = null): Collection
     {
+        $action = $action ?? Config::get('scout.typesense.import_action', 'upsert');
+
         $importedDocuments = $collectionIndex->getDocuments()->import($documents, ['action' => $action]);
 
         $results = [];
@@ -226,6 +234,15 @@ class TypesenseEngine extends Engine
      */
     public function paginate(Builder $builder, $perPage, $page)
     {
+        $maxInt = 4294967295;
+
+        $page = max(1, (int) $page);
+        $perPage = max(1, (int) $perPage);
+
+        if ($page * $perPage > $maxInt) {
+            $page = floor($maxInt / $perPage);
+        }
+
         return $this->performSearch(
             $builder,
             $this->buildSearchParameters($builder, $page, $perPage)
@@ -254,7 +271,13 @@ class TypesenseEngine extends Engine
             return call_user_func($builder->callback, $documents, $builder->query, $options);
         }
 
-        return $documents->search($options);
+        try {
+            return $documents->search($options);
+        } catch (ObjectNotFound) {
+            $this->getOrCreateCollectionFromModel($builder->model, $builder->index, true);
+
+            return $documents->search($options);
+        }
     }
 
     /**
@@ -311,7 +334,7 @@ class TypesenseEngine extends Engine
      * @param  int|null  $perPage
      * @return array
      */
-    public function buildSearchParameters(Builder $builder, int $page, int|null $perPage): array
+    public function buildSearchParameters(Builder $builder, int $page, ?int $perPage): array
     {
         $parameters = [
             'q' => $builder->query,
@@ -328,6 +351,7 @@ class TypesenseEngine extends Engine
             'prioritize_exact_match' => true,
             'enable_overrides' => true,
             'highlight_affix_num_tokens' => 4,
+            'prefix' => config('scout.typesense.model-settings.'.get_class($builder->model).'.search-parameters.prefix') ?? true,
         ];
 
         if (method_exists($builder->model, 'typesenseSearchParameters')) {
@@ -498,12 +522,8 @@ class TypesenseEngine extends Engine
         $objectIdPositions = array_flip($objectIds);
 
         return $model->getScoutModelsByIds($builder, $objectIds)
-            ->filter(static function ($model) use ($objectIds) {
-                return in_array($model->getScoutKey(), $objectIds, false);
-            })
-            ->sortBy(static function ($model) use ($objectIdPositions) {
-                return $objectIdPositions[$model->getScoutKey()];
-            })
+            ->filter(static fn ($model) => in_array($model->getScoutKey(), $objectIds, false))
+            ->sortBy(static fn ($model) => $objectIdPositions[$model->getScoutKey()])
             ->values();
     }
 
@@ -530,12 +550,8 @@ class TypesenseEngine extends Engine
 
         return $model->queryScoutModelsByIds($builder, $objectIds)
             ->cursor()
-            ->filter(static function ($model) use ($objectIds) {
-                return in_array($model->getScoutKey(), $objectIds, false);
-            })
-            ->sortBy(static function ($model) use ($objectIdPositions) {
-                return $objectIdPositions[$model->getScoutKey()];
-            })
+            ->filter(static fn ($model) => in_array($model->getScoutKey(), $objectIds, false))
+            ->sortBy(static fn ($model) => $objectIdPositions[$model->getScoutKey()])
             ->values();
     }
 
@@ -570,11 +586,11 @@ class TypesenseEngine extends Engine
      * @param  array  $options
      * @return void
      *
-     * @throws \Exception
+     * @throws NotSupportedException
      */
     public function createIndex($name, array $options = [])
     {
-        throw new Exception('Typesense indexes are created automatically upon adding objects.');
+        throw new NotSupportedException('Typesense indexes are created automatically upon adding objects.');
     }
 
     /**

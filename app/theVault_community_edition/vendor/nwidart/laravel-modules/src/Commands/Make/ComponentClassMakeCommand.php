@@ -33,6 +33,7 @@ class ComponentClassMakeCommand extends GeneratorCommand
      */
     protected $description = 'Create a new component-class for the specified module.';
 
+    #[\Override]
     public function handle(): int
     {
         if (parent::handle() === E_ERROR) {
@@ -50,20 +51,26 @@ class ComponentClassMakeCommand extends GeneratorCommand
      */
     protected function writeComponentViewTemplate()
     {
-        $this->call('module:make-component-view', ['name' => $this->argument('name'), 'module' => $this->argument('module')]);
+        $this->call('module:make-component-view', [
+            'name' => $this->argument('name'),
+            'module' => $this->argument('module'),
+            '--force' => $this->option('force'),
+        ]);
     }
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.component-class.namespace')
-            ?? ltrim(config('modules.paths.generator.component-class.path', 'View/Component'), config('modules.paths.app_folder', ''));
+            ?? $this->strip_app_folder(config('modules.paths.generator.component-class.path', 'View/Component'));
     }
 
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -75,9 +82,10 @@ class ComponentClassMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getTemplateContents()
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub('/component-class.stub', [
             'NAMESPACE' => $this->getClassNamespace($module),
@@ -90,9 +98,10 @@ class ComponentClassMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
         $factoryPath = GenerateConfigReader::read('component-class');
 
         return $path.$factoryPath->getPath().'/'.$this->getFileName();

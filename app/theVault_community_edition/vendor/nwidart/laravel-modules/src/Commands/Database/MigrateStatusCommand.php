@@ -3,6 +3,7 @@
 namespace Nwidart\Modules\Commands\Database;
 
 use Nwidart\Modules\Commands\BaseCommand;
+use Nwidart\Modules\Contracts\RepositoryInterface;
 use Nwidart\Modules\Migrations\Migrator;
 use Symfony\Component\Console\Input\InputOption;
 
@@ -23,22 +24,31 @@ class MigrateStatusCommand extends BaseCommand
     protected $description = 'Status for all module migrations';
 
     /**
-     * @var \Nwidart\Modules\Contracts\RepositoryInterface
+     * @var RepositoryInterface
      */
     protected $module;
 
+    /**
+     * @param  string  $name
+     */
+    #[\Override]
     public function executeAction($name): void
     {
         $module = $this->getModuleModel($name);
 
-        $path = str_replace(base_path(), '', (new Migrator($module, $this->getLaravel()))->getPath());
+        // the same paths module:migrate, module:migrate-rollback and module:migrate-reset use
+        $paths = (new Migrator($module, $this->getLaravel()))->getPaths();
 
-        $this->call('migrate:status', [
-            '--path' => $path,
+        if ($this->call('migrate:status', [
+            '--path' => $paths,
             '--database' => $this->option('database'),
-        ]);
+            '--realpath' => true,
+        ]) !== self::SUCCESS) {
+            $this->markAsFailed();
+        }
     }
 
+    #[\Override]
     public function getInfo(): ?string
     {
         return null;
@@ -47,8 +57,9 @@ class MigrateStatusCommand extends BaseCommand
     /**
      * Get the console command options.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getOptions()
     {
         return [

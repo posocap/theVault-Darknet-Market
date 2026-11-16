@@ -19,17 +19,19 @@ class ResourceMakeCommand extends GeneratorCommand
 
     protected $description = 'Create a new resource class for the specified module.';
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.resource.namespace')
-            ?? ltrim(config('modules.paths.generator.resource.path', 'Transformers'), config('modules.paths.app_folder', ''));
+            ?? $this->strip_app_folder(config('modules.paths.generator.resource.path', 'Transformers'));
     }
 
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -38,19 +40,22 @@ class ResourceMakeCommand extends GeneratorCommand
         ];
     }
 
+    #[\Override]
     protected function getOptions()
     {
         return [
             ['collection', 'c', InputOption::VALUE_NONE, 'Create a resource collection.'],
+            ['json-api', 'j', InputOption::VALUE_NONE, 'Create a JSON:API resource.'],
         ];
     }
 
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getTemplateContents()
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub($this->getStubName(), [
             'NAMESPACE' => $this->getClassNamespace($module),
@@ -61,9 +66,10 @@ class ResourceMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $resourcePath = GenerateConfigReader::read('resource');
 
@@ -89,10 +95,10 @@ class ResourceMakeCommand extends GeneratorCommand
 
     protected function getStubName(): string
     {
-        if ($this->collection()) {
-            return '/resource-collection.stub';
-        }
-
-        return '/resource.stub';
+        return match (true) {
+            $this->collection() => '/resource-collection.stub',
+            $this->option('json-api') => '/resource-json-api.stub',
+            default => '/resource.stub',
+        };
     }
 }

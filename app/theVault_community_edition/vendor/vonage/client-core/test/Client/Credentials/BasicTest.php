@@ -1,0 +1,31 @@
+<?php
+
+declare(strict_types=1);
+
+namespace VonageTest\Client\Credentials;
+
+use VonageTest\VonageTestCase;
+use Vonage\Client\Credentials\Basic;
+
+class BasicTest extends VonageTestCase
+{
+    protected $key = 'key';
+    protected $secret = 'secret';
+
+    public function testAsArray(): void
+    {
+        $credentials = new Basic($this->key, $this->secret);
+        $array = $credentials->asArray();
+
+        $this->assertEquals($this->key, $array['api_key']);
+        $this->assertEquals($this->secret, $array['api_secret']);
+    }
+
+    public function testProperties(): void
+    {
+        $credentials = new Basic($this->key, $this->secret);
+
+        $this->assertEquals($this->key, $credentials->api_key);
+        $this->assertEquals($this->secret, $credentials->api_secret);
+    }
+}

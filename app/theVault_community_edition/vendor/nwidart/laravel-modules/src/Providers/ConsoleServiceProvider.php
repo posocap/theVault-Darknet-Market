@@ -8,11 +8,16 @@ use Nwidart\Modules\Commands;
 
 class ConsoleServiceProvider extends ServiceProvider
 {
+    #[\Override]
     public function register(): void
     {
         $this->commands(config('modules.commands', self::defaultCommands()->toArray()));
     }
 
+    /**
+     * @return array<int, string> The command class names.
+     */
+    #[\Override]
     public function provides(): array
     {
         return self::defaultCommands()->toArray();
@@ -20,6 +25,8 @@ class ConsoleServiceProvider extends ServiceProvider
 
     /**
      * Get the package default commands.
+     *
+     * @return Collection<int, string> The command class names.
      */
     public static function defaultCommands(): Collection
     {
@@ -31,6 +38,7 @@ class ConsoleServiceProvider extends ServiceProvider
             Commands\Actions\EnableCommand::class,
             Commands\Actions\InstallCommand::class,
             Commands\Actions\ListCommand::class,
+            Commands\Actions\ListCommands::class,
             Commands\Actions\ModelPruneCommand::class,
             Commands\Actions\ModelShowCommand::class,
             Commands\Actions\ModuleDeleteCommand::class,
@@ -54,6 +62,7 @@ class ConsoleServiceProvider extends ServiceProvider
             Commands\Make\CommandMakeCommand::class,
             Commands\Make\ComponentClassMakeCommand::class,
             Commands\Make\ComponentViewMakeCommand::class,
+            Commands\Make\ConfigMakeCommand::class,
             Commands\Make\ControllerMakeCommand::class,
             Commands\Make\EventMakeCommand::class,
             Commands\Make\EventProviderMakeCommand::class,
@@ -62,7 +71,10 @@ class ConsoleServiceProvider extends ServiceProvider
             Commands\Make\FactoryMakeCommand::class,
             Commands\Make\InterfaceMakeCommand::class,
             Commands\Make\HelperMakeCommand::class,
+            Commands\Make\InertiaComponentMakeCommand::class,
+            Commands\Make\InertiaPageMakeCommand::class,
             Commands\Make\JobMakeCommand::class,
+            Commands\Make\JobMiddlewareMakeCommand::class,
             Commands\Make\ListenerMakeCommand::class,
             Commands\Make\MailMakeCommand::class,
             Commands\Make\MiddlewareMakeCommand::class,
@@ -78,6 +90,7 @@ class ConsoleServiceProvider extends ServiceProvider
             Commands\Make\ResourceMakeCommand::class,
             Commands\Make\RouteProviderMakeCommand::class,
             Commands\Make\RuleMakeCommand::class,
+            Commands\Make\ReplacementMakeCommand::class,
             Commands\Make\ScopeMakeCommand::class,
             Commands\Make\SeedMakeCommand::class,
             Commands\Make\ServiceMakeCommand::class,
@@ -88,14 +101,13 @@ class ConsoleServiceProvider extends ServiceProvider
             // Publish Commands
             Commands\Publish\PublishCommand::class,
             Commands\Publish\PublishConfigurationCommand::class,
+            Commands\Publish\PublishInertiaCommand::class,
             Commands\Publish\PublishMigrationCommand::class,
             Commands\Publish\PublishTranslationCommand::class,
 
             // Other Commands
             Commands\ComposerUpdateCommand::class,
             Commands\LaravelModulesV6Migrator::class,
-            Commands\ModuleDiscoverCommand::class,
-            Commands\ModuleClearCompiledCommand::class,
             Commands\SetupCommand::class,
             Commands\UpdatePhpunitCoverage::class,
 

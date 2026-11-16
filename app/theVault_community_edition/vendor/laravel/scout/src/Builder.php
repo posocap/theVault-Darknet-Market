@@ -57,7 +57,7 @@ class Builder
     /**
      * The custom index specified for the search.
      *
-     * @var string
+     * @var string|null
      */
     public $index;
 
@@ -85,7 +85,7 @@ class Builder
     /**
      * The "limit" that should be applied to the search.
      *
-     * @var int
+     * @var int|null
      */
     public $limit;
 
@@ -564,7 +564,7 @@ class Builder
     public function applyAfterRawSearchCallback($results)
     {
         if ($this->afterRawSearchCallback) {
-            call_user_func($this->afterRawSearchCallback, $results);
+            $results = call_user_func($this->afterRawSearchCallback, $results) ?: $results;
         }
 
         return $results;
@@ -578,5 +578,13 @@ class Builder
     protected function engine()
     {
         return $this->model->searchableUsing();
+    }
+
+    /**
+     * Get the connection type for the underlying model.
+     */
+    public function modelConnectionType(): string
+    {
+        return $this->model->getConnection()->getDriverName();
     }
 }

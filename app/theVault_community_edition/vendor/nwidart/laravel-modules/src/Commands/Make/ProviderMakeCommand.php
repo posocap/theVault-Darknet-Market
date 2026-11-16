@@ -35,17 +35,19 @@ class ProviderMakeCommand extends GeneratorCommand
      */
     protected $description = 'Create a new service provider class for the specified module.';
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.provider.namespace')
-            ?? ltrim(config('modules.paths.generator.provider.path', 'Providers'), config('modules.paths.app_folder', ''));
+            ?? $this->strip_app_folder(config('modules.paths.generator.provider.path', 'Providers'));
     }
 
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -57,8 +59,9 @@ class ProviderMakeCommand extends GeneratorCommand
     /**
      * Get the console command options.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getOptions()
     {
         return [
@@ -69,12 +72,13 @@ class ProviderMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getTemplateContents()
     {
         $stub = $this->option('master') ? 'scaffold/provider' : 'provider';
 
         /** @var Module $module */
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub('/'.$stub.'.stub', [
             'NAMESPACE' => $this->getClassNamespace($module),
@@ -83,21 +87,40 @@ class ProviderMakeCommand extends GeneratorCommand
             'MODULE' => $this->getModuleName(),
             'NAME' => $this->getFileName(),
             'STUDLY_NAME' => $module->getStudlyName(),
-            'MODULE_NAMESPACE' => $this->laravel['modules']->config('namespace'),
-            'PATH_VIEWS' => GenerateConfigReader::read('views')->getPath(),
-            'PATH_LANG' => GenerateConfigReader::read('lang')->getPath(),
+            'MODULE_NAMESPACE' => $this->moduleRepository()->config('namespace'),
             'PATH_CONFIG' => GenerateConfigReader::read('config')->getPath(),
-            'MIGRATIONS_PATH' => GenerateConfigReader::read('migration')->getPath(),
             'FACTORIES_PATH' => GenerateConfigReader::read('factory')->getPath(),
+            'PROVIDERS' => $this->getProvidersReplacement(),
         ]))->render();
+    }
+
+    /**
+     * Render the entries of the master provider's $providers array,
+     * listing only the sub-providers that module:make generates.
+     */
+    private function getProvidersReplacement(): string
+    {
+        $providers = array_filter([
+            'EventServiceProvider' => GenerateConfigReader::read('event-provider')->generatesWith(true),
+            'RouteServiceProvider' => GenerateConfigReader::read('route-provider')->generatesWith(true),
+        ]);
+
+        if ($providers === []) {
+            return '';
+        }
+
+        $lines = array_map(fn (string $provider) => "        {$provider}::class,", array_keys($providers));
+
+        return "\n".implode("\n", $lines)."\n    ";
     }
 
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $generatorPath = GenerateConfigReader::read('provider');
 

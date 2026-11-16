@@ -12,16 +12,23 @@ class AssetPublisher extends Publisher
     protected bool $showMessage = false;
 
     /**
+     * Assets are build output, so publishing refreshes them.
+     */
+    protected bool $force = true;
+
+    /**
      * Get destination path.
      */
+    #[\Override]
     public function getDestinationPath(): string
     {
-        return $this->repository->assetPath($this->module->getLowerName());
+        return $this->getRepository()->assetPath($this->module->getLowerName());
     }
 
     /**
      * Get source path.
      */
+    #[\Override]
     public function getSourcePath(): string
     {
         return $this->getModule()->getExtraPath(

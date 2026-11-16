@@ -7,6 +7,7 @@ use Nwidart\Modules\Support\Config\GenerateConfigReader;
 use Nwidart\Modules\Support\Stub;
 use Nwidart\Modules\Traits\ModuleCommandTrait;
 use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputOption;
 
 class MiddlewareMakeCommand extends GeneratorCommand
 {
@@ -33,17 +34,19 @@ class MiddlewareMakeCommand extends GeneratorCommand
      */
     protected $description = 'Create a new middleware class for the specified module.';
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.filter.namespace')
-            ?? ltrim(config('modules.paths.generator.filter.path', 'Http/Middleware'), config('modules.paths.app_folder', ''));
+            ?? $this->strip_app_folder(config('modules.paths.generator.filter.path', 'Http/Middleware'));
     }
 
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -53,13 +56,29 @@ class MiddlewareMakeCommand extends GeneratorCommand
     }
 
     /**
+     * Get the console command options.
+     *
+     * @return array<int, array<int, mixed>>
+     */
+    #[\Override]
+    protected function getOptions()
+    {
+        return [
+            ['inertia', null, InputOption::VALUE_NONE, 'Generate an Inertia HandleInertiaRequests middleware.'],
+        ];
+    }
+
+    /**
      * @return mixed
      */
+    #[\Override]
     protected function getTemplateContents()
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
-        return (new Stub('/middleware.stub', [
+        $stub = $this->option('inertia') ? '/middleware/handle-inertia-requests.stub' : '/middleware.stub';
+
+        return (new Stub($stub, [
             'NAMESPACE' => $this->getClassNamespace($module),
             'CLASS' => $this->getClass(),
         ]))->render();
@@ -68,9 +87,10 @@ class MiddlewareMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $middlewarePath = GenerateConfigReader::read('filter');
 
@@ -88,13 +108,12 @@ class MiddlewareMakeCommand extends GeneratorCommand
     /**
      * Run the command.
      */
+    #[\Override]
     public function handle(): int
     {
 
         $this->components->info('Creating middleware...');
 
-        parent::handle();
-
-        return 0;
+        return parent::handle();
     }
 }
