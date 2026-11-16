@@ -14,3 +14,11 @@ WHERE p.id IN (SELECT id FROM physical_products)
   AND p.id NOT IN (SELECT product_id FROM shippings);
 
 UPDATE products SET coins = 'stb';
+
+-- Pictures for the two "Targeted Extraction Services" listings (they had none and showed the grey placeholder).
+INSERT INTO images (id, product_id, image, `first`, created_at, updated_at)
+SELECT UUID(), p.id, 'nyc.jpg', 1, NOW(), NOW() FROM products p
+WHERE p.id = 'a1d57b9a-ecff-11ef-9872-00163e5e6c20' AND p.id NOT IN (SELECT product_id FROM images);
+INSERT INTO images (id, product_id, image, `first`, created_at, updated_at)
+SELECT UUID(), p.id, 'hollywood.jpg', 1, NOW(), NOW() FROM products p
+WHERE p.id = 'b2e67c9a-ecff-11ef-9872-00163e5e6c21' AND p.id NOT IN (SELECT product_id FROM images);
