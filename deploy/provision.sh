@@ -456,6 +456,8 @@ done
 [[ -s "$HS_DIR/hostname" ]] || die "No hostname generated. Check: journalctl -u $TOR_SERVICE"
 ONION="$(cat "$HS_DIR/hostname")"
 setenv APP_URL "http://${ONION}"
+# Show the real addresses in the "Official Mirrors" box on the home page.
+setenv MARKETPLACE_MIRRORS "http://${ONION}${CLEARNET_DOMAIN:+,https://${CLEARNET_DOMAIN}}"
 (cd "$APP_DIR" && php artisan config:clear >/dev/null 2>&1 || true)
 
 # --- smoke tests -------------------------------------------------------------

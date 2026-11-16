@@ -21,7 +21,7 @@ use Illuminate\Support\Str;
                         </div>
                         <div class="card-body text-center">
                             @foreach(config('marketplace.mirrors') as $mirror)
-                                <a href="{{ $mirror }}" style="text-decoration:none;">{{ $mirror }}</a>
+                                <div class="mb-2"><a href="{{ $mirror }}" style="text-decoration:none; word-break:break-all; font-size:0.8rem;">{{ $mirror }}</a></div>
                             @endforeach
                         </div>
                     </div>
