@@ -234,11 +234,20 @@ sed -i -E "s|^;?listen.owner = .*|listen.owner = ${WEB_USER}|; s|^;?listen.group
 sed -i -E "s|^listen = .*|listen = ${FPM_SOCK}|" "$FPM_POOL"
 sed -i -E "s|^;?cgi.fix_pathinfo=.*|cgi.fix_pathinfo=0|" /etc/php.ini 2>/dev/null || true
 
+# PHP hardening for the web pool: no version banner, no shell-exec functions.
+if ! grep -q 'disable_functions' "$FPM_POOL"; then
+  cat >> "$FPM_POOL" <<'FPMHARD'
+php_admin_value[expose_php] = Off
+php_admin_value[disable_functions] = exec,passthru,shell_exec,system,popen,proc_open,pcntl_exec
+FPMHARD
+fi
+
 # Small-box tuning (1-2 GB RAM shared with other services).
 sed -i -E "s|^pm = .*|pm = ondemand|; s|^pm.max_children = .*|pm.max_children = 6|; s|^;?pm.process_idle_timeout = .*|pm.process_idle_timeout = 20s|" "$FPM_POOL"
 mkdir -p /etc/my.cnf.d
 cat > /etc/my.cnf.d/zz-thevault.cnf <<'MYCNF'
 [mysqld]
+bind-address = 127.0.0.1
 innodb_buffer_pool_size = 128M
 max_connections = 40
 performance_schema = OFF
@@ -271,6 +280,9 @@ server {
     add_header X-Content-Type-Options nosniff;
     add_header X-Frame-Options DENY;
     add_header Referrer-Policy no-referrer;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()";
+    add_header Cross-Origin-Opener-Policy same-origin;
+    add_header Cross-Origin-Resource-Policy same-origin;
 
     location / {
         try_files \$uri \$uri/ /index.php?\$query_string;
@@ -318,6 +330,9 @@ server {
     add_header X-Content-Type-Options nosniff;
     add_header X-Frame-Options DENY;
     add_header Referrer-Policy no-referrer;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()";
+    add_header Cross-Origin-Opener-Policy same-origin;
+    add_header Cross-Origin-Resource-Policy same-origin;
 
     location / {
         try_files \$uri \$uri/ /index.php?\$query_string;
@@ -362,6 +377,12 @@ if grep -q '^MNEMONIC: ' /tmp/vault-admin.out; then
   echo "ADMIN_MNEMONIC='$(sed -n 's/^MNEMONIC: //p' /tmp/vault-admin.out)'" >> "$CREDS_FILE"
 fi
 rm -f /tmp/vault-admin.out
+# Demo product images (e.g. Trace Thorn's portrait). Never overwrite existing files,
+# and re-create the public/storage symlink (rsync --delete removes it on re-runs).
+mkdir -p "$APP_DIR/storage/app/public"
+if [[ -d "$SRC_DIR/app/example_files/demo_images" ]]; then
+  cp -n "$SRC_DIR/app/example_files/demo_images/"* "$APP_DIR/storage/app/public/" 2>/dev/null || true
+fi
 chown -R "$WEB_USER":"$WEB_USER" "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
 (cd "$APP_DIR" && php artisan storage:link >/dev/null 2>&1 || true)
 cat > /etc/cron.d/thevault <<CRON
@@ -393,6 +414,9 @@ sed -i '/^# BEGIN thevault/,/^# END thevault/d' "$TORRC"
   echo "# BEGIN thevault"
   echo "HiddenServiceDir ${HS_DIR}/"
   echo "HiddenServicePort 80 127.0.0.1:${NGINX_PORT}"
+  # Onion-service DoS protection: rate-limit introduction requests and require client proof-of-work under load.
+  echo "HiddenServiceEnableIntroDoSDefense 1"
+  echo "HiddenServicePoWDefensesEnabled 1"
   # Keep Tor's footprint minimal: client-only, never a relay/exit, no SOCKS listener.
   echo "SocksPort 0"
   echo "ExitRelay 0"

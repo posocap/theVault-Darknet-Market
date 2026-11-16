@@ -82,8 +82,47 @@ The following services are available as freelance work:
 - Pentesting and vulnerability mitigation.
 
 #### Deployment Steps (CE)
-1. Deploy on any Linux VM supporting Tor with at least 2GB RAM (Fedora or Debian recommended).
-2. Use the automated installation scripts in the `install` directory and refer to the accompanying .txt files for notes and useful commands.
+
+**Requirements:** a Linux VM (Rocky/Alma/RHEL/Fedora or Debian/Ubuntu), root access, 2 GB RAM / 1 vCPU / 10 GB disk, and outbound internet. No inbound port is needed for the onion service; ports 80/443 are only used if you also serve the clearnet.
+
+**1. Install (onion service, one command):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/posocap/theVault-Darknet-Market/main/deploy/provision.sh -o provision.sh
+sudo bash provision.sh
+```
+
+The script is idempotent and prints your `.onion` address when it finishes (a new onion service can take a few minutes to become reachable in Tor Browser). It:
+
+- installs PHP 8.3 (refusing unpatched builds), nginx, MariaDB, Tor and Composer;
+- imports the demo database (`app/example_files/marketplace_backup.sql`) and copies the demo product images (`app/example_files/demo_images/`, including Trace Thorn's portrait) into `storage/app/public`;
+- locks the three demo vendor accounts, creates an admin account when possible, and saves generated secrets to `/root/.thevault-credentials`;
+- runs Tor client-only (no relay, exit, SOCKS or DNS port) with default obfs4 bridges (`deploy/bridges.txt`) and onion-service DoS defenses;
+- binds nginx and MariaDB to localhost and turns nginx access logging off.
+
+**2. Common options** (environment variables, all optional; the full list is at the top of `deploy/provision.sh`):
+
+| Variable | Purpose |
+| --- | --- |
+| `CLEARNET_DOMAIN=example.com` | also serve the site on the clearnet (separate nginx vhost; use Cloudflare "Full" SSL mode) |
+| `HS_KEY_DIR=/path/to/keys` | restore a backed-up onion key to keep an existing `.onion` address |
+| `BRIDGE_LINES` / `USE_BRIDGES=no` | use your own obfs4 bridges, or connect to Tor directly |
+| `IMPORT_DEMO=no` | start with an empty schema (`php artisan migrate`) instead of the demo data |
+| `REPO_REF=<branch or tag>` | deploy something other than `main` |
+
+Example with the clearnet and an existing onion address: `sudo CLEARNET_DOMAIN=example.com HS_KEY_DIR=/root/onion-keys bash provision.sh`
+
+**3. Update later without downtime:**
+
+```bash
+sudo bash /opt/thevault-src/deploy/update.sh
+```
+
+This pulls the latest code, keeps your `.env`, database and uploads, and only does graceful *reloads* of php-fpm and nginx. Tor and MariaDB are never restarted, so the onion service stays up.
+
+**4. Back up** `/var/lib/tor/thevault` (your onion key, which *is* your address) and `/root/.thevault-credentials`.
+
+Notes on the demo images: product pictures are referenced as `/storage/<file>` and live in `storage/app/public`. If you add your own, put them there; `provision.sh` and `update.sh` never overwrite existing files. Only the Trace Thorn portrait ships in this repo so far; other demo products show a missing-image icon until you add their pictures (`artist.jpg`, `athlete.jpg`, `iq.jpg`, `music.jpg`, `mutate.jpg`, `rounded.jpg`, `tall.jpg`, `dna_bg1-3.jpg`).
 
 ---
 
@@ -142,11 +181,10 @@ I offer freelance support as a maintainer or developer for **theVault**. This in
 
 - Dependencies: `phpseclib` 3.x replaces 2.x, and the unused, abandoned `paragonie/easyrsa` was removed. Composer's insecure-package blocking is on and `composer audit` reports no advisories.
 - Application: payments are simulation-only; throttling, one-time captcha and ownership checks added; `info.php` removed; `APP_DEBUG=false`; `.env` is mode 640.
-- Web server: `server_tokens off`, `X-Powered-By` removed, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy`, and cross-origin isolation headers. Dotfiles, logs and config files are denied; access logging is off. The clearnet origin accepts connections only from Cloudflare's published ranges (refreshed weekly); anything else is refused.
+- Web server: `server_tokens off`, `X-Powered-By` removed, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy`, and cross-origin isolation headers. Dotfiles, logs and config files are denied; access logging is off.
 - PHP: `expose_php` off; `exec`, `shell_exec`, `system`, `passthru`, `popen`, `proc_open` and `pcntl_exec` disabled for the web pool.
-- Edge (Cloudflare): TLS 1.2 minimum, TLS 1.3 on, always-HTTPS, HSTS (6 months), DNSSEC enabled.
 - Tor: client-only (no relay, no exit, no SOCKS or DNS port, so no DNS leaks), obfs4 bridges, onion-service intro-point DoS defense and proof-of-work defense enabled.
-- Host: MariaDB bound to localhost; SSH is key-only; unused firewall rules removed.
+- Host: MariaDB bound to localhost (`bind-address = 127.0.0.1`); SSH is key-only; unused firewall rules removed. Application updates use graceful reloads only (`deploy/update.sh`), never restarts of Tor or the database.
 - Known limitations: the database is MariaDB 10.5 (community end-of-life was June 2025; the distro keeps backporting fixes); SELinux is disabled on the demo host. Both are on the upgrade list.
 
 ## 📞 Contact
