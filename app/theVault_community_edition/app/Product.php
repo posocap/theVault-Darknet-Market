@@ -382,7 +382,10 @@ class Product extends Model
         if (!FinalizeEarlyPayment::isEnabled() && in_array($feName,$types)){
             unset($types[array_search($feName,$types)]);
         }
-        return array_values($types);
+        // Ignore unknown purchase types (e.g. legacy "premium" in old data) and fall back to the default
+        $types = array_values(array_filter($types, fn ($type) => isset(Purchase::$types[$type])));
+
+        return $types ?: [Purchase::DEFAULT_TYPE];
     }
 
     /**

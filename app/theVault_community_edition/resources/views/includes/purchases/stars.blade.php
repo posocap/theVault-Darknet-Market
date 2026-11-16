@@ -1,3 +1,4 @@
+@php $stars = is_numeric($stars) ? (float) $stars : 0.0; @endphp
 @for($i = 1; $i<= $stars; $i++)
     <i class="fas fa-star"></i>
 @endfor

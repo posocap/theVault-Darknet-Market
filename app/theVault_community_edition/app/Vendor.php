@@ -29,7 +29,52 @@ class Vendor extends User
         return $this->belongsTo(User::class, 'id', 'id');
     }
 
-    // ... (other methods)
+    /**
+     * Feedback left for this vendor
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function feedback()
+    {
+        return $this->hasMany(Feedback::class, 'vendor_id', 'id');
+    }
+
+    /**
+     * Total number of feedback entries
+     */
+    public function countFeedback(): int
+    {
+        return $this->feedback()->count();
+    }
+
+    /**
+     * Number of feedback entries of a type (positive|neutral|negative),
+     * optionally only those left during the last $months months.
+     */
+    public function countFeedbackByType($type, $months = null): int
+    {
+        $query = $this->feedback()->where('type', $type);
+        if ($months !== null) {
+            $query->where('created_at', '>=', Carbon::now()->subMonths((int) $months));
+        }
+
+        return $query->count();
+    }
+
+    /**
+     * Average of a rate column (two decimals), or '' when there is no feedback
+     *
+     * @param string $type quality_rate|communication_rate|shipping_rate
+     */
+    public function avgRate($type)
+    {
+        if (!in_array($type, Feedback::$rates)) {
+            $type = 'quality_rate';
+        }
+        $avg = $this->feedback()->avg($type);
+
+        return $avg === null ? '' : number_format($avg, 2);
+    }
 
     /**
      * Checks if vendor is trusted (set in admin panel)
