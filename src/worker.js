@@ -96,6 +96,8 @@ function landingPage(origin) {
     <a href="${REPO_URL}">theVault repository on GitHub</a> remains available.</p>
   </section>
 </main>
+<div id="footer-ads"></div>
+<script src="/footer-ads/footer-ad-rotator.js" defer></script>
 <footer>
   <p>Brought to you by <a href="${POSOCAP_URL}">PosoCap</a>.</p>
 </footer>
@@ -107,7 +109,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname.startsWith("/images/")) {
+    if (url.pathname.startsWith("/images/") || url.pathname.startsWith("/footer-ads/")) {
       const res = await env.ASSETS.fetch(request);
       const out = new Response(res.body, res);
       out.headers.set("cache-control", "public, max-age=86400");
