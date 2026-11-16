@@ -1,0 +1,12 @@
+<phpunit bootstrap="./tests/bootstrap.php">
+    <testsuites>
+        <testsuite name="Opis Closure">
+            <directory suffix="Test.php" phpVersion="8.0" phpVersionOperator=">=">./tests/PHP80</directory>
+            <directory suffix="Test.php" phpVersion="8.1" phpVersionOperator=">=">./tests/PHP81</directory>
+            <directory suffix="Test.php" phpVersion="8.2" phpVersionOperator=">=">./tests/PHP82</directory>
+            <directory suffix="Test.php" phpVersion="8.3" phpVersionOperator=">=">./tests/PHP83</directory>
+            <directory suffix="Test.php" phpVersion="8.4" phpVersionOperator=">=">./tests/PHP84</directory>
+            <directory suffix="Test.php" phpVersion="8.5" phpVersionOperator=">=">./tests/PHP85</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>

@@ -20,6 +20,10 @@ class EnableCommand extends BaseCommand
      */
     protected $description = 'Enable the specified module.';
 
+    /**
+     * @param  string  $name
+     */
+    #[\Override]
     public function executeAction($name): void
     {
         $module = $this->getModuleModel($name);
@@ -33,8 +37,9 @@ class EnableCommand extends BaseCommand
         });
     }
 
+    #[\Override]
     public function getInfo(): ?string
     {
-        return 'Disabling module ...';
+        return 'Enabling module ...';
     }
 }

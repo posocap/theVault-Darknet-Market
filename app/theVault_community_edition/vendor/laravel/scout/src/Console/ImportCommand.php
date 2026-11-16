@@ -5,6 +5,7 @@ namespace Laravel\Scout\Console;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Events\Dispatcher;
 use Laravel\Scout\Events\ModelsImported;
+use Laravel\Scout\Exceptions\ScoutException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'scout:import')]
@@ -17,6 +18,7 @@ class ImportCommand extends Command
      */
     protected $signature = 'scout:import
             {model : Class name of model to bulk import}
+            {--fresh : Flush the index before importing}
             {--c|chunk= : The number of records to import at a time (Defaults to configuration value: `scout.chunk.searchable`)}';
 
     /**
@@ -31,10 +33,16 @@ class ImportCommand extends Command
      *
      * @param  \Illuminate\Contracts\Events\Dispatcher  $events
      * @return void
+     *
+     * @throws ScoutException
      */
     public function handle(Dispatcher $events)
     {
         $class = $this->argument('model');
+
+        if (! class_exists($class) && ! class_exists($class = app()->getNamespace()."Models\\{$class}")) {
+            throw new ScoutException("Model [{$class}] not found.");
+        }
 
         $model = new $class;
 
@@ -43,6 +51,10 @@ class ImportCommand extends Command
 
             $this->line('<comment>Imported ['.$class.'] models up to ID:</comment> '.$key);
         });
+
+        if ($this->option('fresh')) {
+            $model::removeAllFromSearch();
+        }
 
         $model::makeAllSearchable($this->option('chunk'));
 

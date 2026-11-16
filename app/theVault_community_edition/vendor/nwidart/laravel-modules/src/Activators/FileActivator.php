@@ -7,6 +7,7 @@ use Illuminate\Container\Container;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Filesystem\Filesystem;
 use Nwidart\Modules\Contracts\ActivatorInterface;
+use Nwidart\Modules\Exceptions\InvalidJsonException;
 use Nwidart\Modules\Module;
 
 class FileActivator implements ActivatorInterface
@@ -23,6 +24,8 @@ class FileActivator implements ActivatorInterface
 
     /**
      * Array of modules activation statuses
+     *
+     * @var array<string, bool>
      */
     private array $modulesStatuses;
 
@@ -33,8 +36,8 @@ class FileActivator implements ActivatorInterface
 
     public function __construct(Container $app)
     {
-        $this->files = $app['files'];
-        $this->config = $app['config'];
+        $this->files = $app->make(Filesystem::class);
+        $this->config = $app->make(Config::class);
         $this->statusesFile = $this->config('statuses-file');
         $this->modulesStatuses = $this->readJson();
     }
@@ -50,6 +53,7 @@ class FileActivator implements ActivatorInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function reset(): void
     {
         if ($this->files->exists($this->statusesFile)) {
@@ -61,6 +65,7 @@ class FileActivator implements ActivatorInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function enable(Module $module): void
     {
         $this->setActiveByName($module->getName(), true);
@@ -69,6 +74,7 @@ class FileActivator implements ActivatorInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function disable(Module $module): void
     {
         $this->setActiveByName($module->getName(), false);
@@ -77,6 +83,7 @@ class FileActivator implements ActivatorInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function hasStatus(Module|string $module, bool $status): bool
     {
         $name = $module instanceof Module ? $module->getName() : $module;
@@ -91,6 +98,7 @@ class FileActivator implements ActivatorInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function setActive(Module $module, bool $active): void
     {
         $this->setActiveByName($module->getName(), $active);
@@ -99,6 +107,7 @@ class FileActivator implements ActivatorInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function setActiveByName(string $name, bool $status): void
     {
         $this->modulesStatuses[$name] = $status;
@@ -108,6 +117,7 @@ class FileActivator implements ActivatorInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function delete(Module $module): void
     {
         if (! isset($this->modulesStatuses[$module->getName()])) {
@@ -128,7 +138,12 @@ class FileActivator implements ActivatorInterface
     /**
      * Reads the json file that contains the activation statuses.
      *
+     * A file that is not valid JSON is never treated as empty: the next write would replace it and lose every status.
+     *
+     * @return array<string, mixed>
+     *
      * @throws FileNotFoundException
+     * @throws InvalidJsonException
      */
     private function readJson(): array
     {
@@ -136,13 +151,28 @@ class FileActivator implements ActivatorInterface
             return [];
         }
 
-        return $this->files->json($this->statusesFile);
+        $contents = $this->files->get($this->statusesFile);
+
+        if (trim($contents) === '') {
+            return [];
+        }
+
+        $statuses = json_decode($contents, true);
+
+        // A non-empty JSON list has no module names; an empty one ([]) simply holds no statuses.
+        if (! is_array($statuses) || ($statuses !== [] && array_is_list($statuses))) {
+            $error = json_last_error() === JSON_ERROR_NONE ? 'Expected a JSON object' : json_last_error_msg();
+
+            throw new InvalidJsonException("The module statuses file [{$this->statusesFile}] is not valid: {$error}. Fix or restore the file (it maps module names to true or false).");
+        }
+
+        return $statuses;
     }
 
     /**
      * Reads a config parameter under the 'activators.file' key
      */
-    private function config(string $key, $default = null)
+    private function config(string $key, mixed $default = null): mixed
     {
         return $this->config->get('modules.activators.file.'.$key, $default);
     }

@@ -19,6 +19,7 @@ class TestMakeCommand extends GeneratorCommand
 
     protected $description = 'Create a new test class for the specified module.';
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         if ($this->option('feature')) {
@@ -33,8 +34,9 @@ class TestMakeCommand extends GeneratorCommand
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -46,8 +48,9 @@ class TestMakeCommand extends GeneratorCommand
     /**
      * Get the console command options.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getOptions()
     {
         return [
@@ -58,9 +61,10 @@ class TestMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getTemplateContents()
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
         $stub = '/tests/'.(($this->option('feature')) ? 'feature' : 'unit').'.stub';
 
         return (new Stub($stub, [
@@ -72,9 +76,10 @@ class TestMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         if ($this->option('feature')) {
             $testPath = GenerateConfigReader::read('test-feature');

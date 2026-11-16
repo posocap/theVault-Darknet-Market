@@ -2,25 +2,23 @@
 declare(strict_types=1);
 namespace ParagonIE\ConstantTime\Tests;
 
-use InvalidArgumentException;
 use ParagonIE\ConstantTime\Base64DotSlash;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RangeException;
+use function bin2hex;
+use function random_bytes;
+use function rtrim;
 
 class Base64DotSlashTest extends TestCase
 {
     use CanonicalTrait;
 
-    /**
-     * @covers Base64DotSlash::encode()
-     * @covers Base64DotSlash::decode()
-     */
     public function testRandom()
     {
         for ($i = 1; $i < 32; ++$i) {
             for ($j = 0; $j < 50; ++$j) {
-                $random = \random_bytes($i);
+                $random = random_bytes($i);
 
                 $enc = Base64DotSlash::encode($random);
                 $this->assertSame(
@@ -28,7 +26,7 @@ class Base64DotSlashTest extends TestCase
                     Base64DotSlash::decode($enc)
                 );
 
-                $unpadded = \rtrim($enc, '=');
+                $unpadded = rtrim($enc, '=');
                 $this->assertSame(
                     $random,
                     Base64DotSlash::decode($unpadded)
@@ -41,14 +39,21 @@ class Base64DotSlashTest extends TestCase
         }
     }
 
-    public function testDecodeNoPadding()
+    public function testUnpadded()
     {
-        Base64DotSlash::decodeNoPadding('..');
-        $this->expectException(InvalidArgumentException::class);
-        Base64DotSlash::decodeNoPadding('..==');
+        for ($i = 1; $i < 32; ++$i) {
+            $random = random_bytes($i);
+            $encoded = Base64DotSlash::encodeUnpadded($random);
+            $decoded = Base64DotSlash::decodeNoPadding($encoded);
+            $this->assertSame(
+                bin2hex($random),
+                bin2hex($decoded)
+            );
+        }
     }
 
     /**
+     * We need this for PHP before attributes
      * @dataProvider canonicalDataProvider
      */
     #[DataProvider("canonicalDataProvider")]
@@ -74,5 +79,24 @@ class Base64DotSlashTest extends TestCase
             'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./',
             'BCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./A'
         );
+    }
+
+    public static function invalidCharactersProvider(): array
+    {
+        return [
+            ['ab-d'],
+            ['ab d'],
+            ['ab[d'],
+        ];
+    }
+
+    /**
+     * @dataProvider invalidCharactersProvider
+     */
+    #[DataProvider("invalidCharactersProvider")]
+    public function testInvalidCharacters(string $encoded)
+    {
+        $this->expectException(RangeException::class);
+        Base64DotSlash::decode($encoded);
     }
 }

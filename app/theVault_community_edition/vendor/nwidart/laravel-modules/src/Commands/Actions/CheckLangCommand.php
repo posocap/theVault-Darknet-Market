@@ -2,12 +2,22 @@
 
 namespace Nwidart\Modules\Commands\Actions;
 
+use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\File;
 use Nwidart\Modules\Commands\BaseCommand;
+use Nwidart\Modules\Module;
 
+/**
+ * @phpstan-type LangDirectory array{name: string, module: string, path: string, files: array<string>}
+ */
 class CheckLangCommand extends BaseCommand
 {
-    private $langPath;
+    /**
+     * The lang path inside a module, with a leading directory separator.
+     */
+    private readonly string $langPath;
 
     /**
      * The console command name.
@@ -30,6 +40,10 @@ class CheckLangCommand extends BaseCommand
         $this->langPath = DIRECTORY_SEPARATOR.config('modules.paths.generator.lang.path', 'Resources/lang');
     }
 
+    /**
+     * @param  string  $name
+     */
+    #[\Override]
     public function executeAction($name): void
     {
         $module = $this->getModuleModel($name);
@@ -40,45 +54,42 @@ class CheckLangCommand extends BaseCommand
             return;
         }
 
-        $this->checkMissingFiles($directories);
+        // Run both checks, so every missing file and key is reported, not only the first kind.
+        $missingFiles = $this->checkMissingFiles($directories);
+        $missingKeys = $this->checkMissingKeys($directories);
 
-        $this->checkMissingKeys($directories);
-
+        if ($missingFiles || $missingKeys) {
+            $this->markAsFailed();
+        }
     }
 
+    #[\Override]
     public function getInfo(): ?string
     {
         return 'Checking languages ...';
     }
 
-    private function getLangFiles($module)
-    {
-        $files = [];
-        $path = $module->getPath().$this->langPath;
-        if (is_dir($path)) {
-            $files = array_merge($files, $this->laravel['files']->all($path));
-        }
-
-        return $files;
-    }
-
+    /**
+     * Get the locale directories of the module, or false when there are fewer than two.
+     *
+     * @param  Module  $module
+     * @return Collection<int, LangDirectory>|false
+     */
     private function getDirectories($module)
     {
         $moduleName = $module->getStudlyName();
         $path = $module->getPath().$this->langPath;
         $directories = [];
         if (is_dir($path)) {
-            $directories = $this->laravel['files']->directories($path);
-            $directories = array_map(function ($directory) use ($moduleName) {
-                return [
-                    'name' => basename($directory),
-                    'module' => $moduleName,
-                    'path' => $directory,
-                    'files' => array_map(function ($file) {
-                        return basename($file);
-                    }, \File::glob($directory.DIRECTORY_SEPARATOR.'*')),
-                ];
-            }, $directories);
+            // Filesystem::directories() is typed as a plain array; it holds the directory paths.
+            /** @var array<int, string> $directories */
+            $directories = $this->laravel->make(Filesystem::class)->directories($path);
+            $directories = array_map(fn ($directory) => [
+                'name' => basename($directory),
+                'module' => $moduleName,
+                'path' => $directory,
+                'files' => array_map(fn ($file) => basename($file), File::glob($directory.DIRECTORY_SEPARATOR.'*')),
+            ], $directories);
         }
 
         if (count($directories) == 0) {
@@ -96,7 +107,12 @@ class CheckLangCommand extends BaseCommand
         return collect($directories);
     }
 
-    private function checkMissingFiles(Collection $directories)
+    /**
+     * Report the language files missing from a locale. Returns whether any file is missing.
+     *
+     * @param  Collection<int, LangDirectory>  $directories
+     */
+    private function checkMissingFiles(Collection $directories): bool
     {
         // show missing files
         $missingFilesMessage = [];
@@ -131,9 +147,15 @@ class CheckLangCommand extends BaseCommand
 
         }
 
+        return count($missingFilesMessage) > 0;
     }
 
-    private function checkMissingKeys(Collection $directories)
+    /**
+     * Report the language keys missing from a locale. Returns whether any key is missing.
+     *
+     * @param  Collection<int, LangDirectory>  $directories
+     */
+    private function checkMissingKeys(Collection $directories): bool
     {
         // show missing keys
         $uniqeLangFiles = $directories->pluck('files')->flatten()->unique();
@@ -153,11 +175,13 @@ class CheckLangCommand extends BaseCommand
 
                     if ($directory['name'] != $langDirectory) {
 
-                        $basePath = str_replace($directory['name'], $langDirectory, $directory['path']);
+                        // Swap only the locale directory: the locale can also appear elsewhere in the path (en in /home/ben/).
+                        $basePath = dirname($directory['path']).DIRECTORY_SEPARATOR.$langDirectory;
 
                         $otherLangKeys = $this->getLangKeys($basePath.DIRECTORY_SEPARATOR.$file);
 
                         if ($otherLangKeys == false) {
+                            // The file is missing in this locale; checkMissingFiles() already reported it.
                             return;
                         }
 
@@ -187,14 +211,22 @@ class CheckLangCommand extends BaseCommand
                 $this->newLine();
             });
         }
+
+        return count($missingKeysMessage) > 0;
     }
 
+    /**
+     * Get the dotted keys of a language file, or false when the file does not exist.
+     *
+     * @param  string  $file
+     * @return Collection<int, array-key>|false
+     */
     private function getLangKeys($file)
     {
-        if (\File::exists($file)) {
-            $lang = \File::getRequire($file);
+        if (File::exists($file)) {
+            $lang = File::getRequire($file);
 
-            return collect(\Arr::dot($lang))->keys();
+            return collect(Arr::dot($lang))->keys();
         } else {
             return false;
         }

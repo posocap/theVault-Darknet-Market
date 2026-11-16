@@ -29,6 +29,7 @@ class ClassMakeCommand extends GeneratorCommand
 
     protected $argumentName = 'name';
 
+    #[\Override]
     public function getTemplateContents(): string
     {
         return (new Stub($this->stub(), [
@@ -42,13 +43,20 @@ class ClassMakeCommand extends GeneratorCommand
         return $this->option('invokable') ? '/class-invoke.stub' : '/class.stub';
     }
 
+    #[\Override]
     public function getDestinationFilePath(): string
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
-        $filePath = GenerateConfigReader::read('class')->getPath() ?? config('modules.paths.app_folder').'Classes';
+        return $path.$this->typePath($this->classPath()).'/'.$this->getFileName().'.php';
+    }
 
-        return $this->typePath($path.$filePath.'/'.$this->getFileName().'.php');
+    /**
+     * Get the folder of plain classes, relative to the module root (e.g. "app/Classes").
+     */
+    protected function classPath(): string
+    {
+        return GenerateConfigReader::read('class')->getPath() ?? config('modules.paths.app_folder').'Classes';
     }
 
     protected function getFileName(): string
@@ -82,10 +90,20 @@ class ClassMakeCommand extends GeneratorCommand
         return Str::of($this->getFileName())->basename()->studly();
     }
 
+    /**
+     * The namespace follows the folder the class is written to: "Classes" for the default type,
+     * the plural type for other types (e.g. "Services" for --type=service).
+     * A namespace configured for the type takes precedence. The generator config keys are
+     * plural for some types and singular for others (services, interfaces, but class, repository),
+     * so the plural key is read first, then the singular one.
+     */
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         $type = $this->type();
 
-        return config("modules.paths.generator.{$type}.namespace", 'Classes');
+        return config('modules.paths.generator.'.Str::plural($type).'.namespace')
+            ?? config("modules.paths.generator.{$type}.namespace")
+            ?? $this->typePath($this->strip_app_folder($this->classPath()));
     }
 }

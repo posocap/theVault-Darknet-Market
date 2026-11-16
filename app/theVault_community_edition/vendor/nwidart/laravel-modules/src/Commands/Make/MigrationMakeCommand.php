@@ -15,6 +15,8 @@ class MigrationMakeCommand extends GeneratorCommand
 {
     use ModuleCommandTrait;
 
+    protected $argumentName = 'name';
+
     /**
      * The console command name.
      *
@@ -32,8 +34,9 @@ class MigrationMakeCommand extends GeneratorCommand
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -45,8 +48,9 @@ class MigrationMakeCommand extends GeneratorCommand
     /**
      * Get the console command options.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getOptions()
     {
         return [
@@ -70,6 +74,7 @@ class MigrationMakeCommand extends GeneratorCommand
      *
      * @throws \InvalidArgumentException
      */
+    #[\Override]
     protected function getTemplateContents()
     {
         $parser = new NameParser($this->argument('name'));
@@ -79,6 +84,8 @@ class MigrationMakeCommand extends GeneratorCommand
                 'class' => $this->getClass(),
                 'table' => $parser->getTableName(),
                 'fields' => $this->getSchemaParser()->render(),
+                'module' => $this->getModuleName(),
+                'module_namespace' => $this->moduleRepository()->config('namespace'),
             ]);
         } elseif ($parser->isAdd()) {
             return Stub::create('/migration/add.stub', [
@@ -86,6 +93,8 @@ class MigrationMakeCommand extends GeneratorCommand
                 'table' => $parser->getTableName(),
                 'fields_up' => $this->getSchemaParser()->up(),
                 'fields_down' => $this->getSchemaParser()->down(),
+                'module' => $this->getModuleName(),
+                'module_namespace' => $this->moduleRepository()->config('namespace'),
             ]);
         } elseif ($parser->isDelete()) {
             return Stub::create('/migration/delete.stub', [
@@ -93,12 +102,16 @@ class MigrationMakeCommand extends GeneratorCommand
                 'table' => $parser->getTableName(),
                 'fields_down' => $this->getSchemaParser()->up(),
                 'fields_up' => $this->getSchemaParser()->down(),
+                'module' => $this->getModuleName(),
+                'module_namespace' => $this->moduleRepository()->config('namespace'),
             ]);
         } elseif ($parser->isDrop()) {
             return Stub::create('/migration/drop.stub', [
                 'class' => $this->getClass(),
                 'table' => $parser->getTableName(),
                 'fields' => $this->getSchemaParser()->render(),
+                'module' => $this->getModuleName(),
+                'module_namespace' => $this->moduleRepository()->config('namespace'),
             ]);
         }
 
@@ -110,9 +123,10 @@ class MigrationMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $generatorPath = GenerateConfigReader::read('migration');
 
@@ -128,7 +142,7 @@ class MigrationMakeCommand extends GeneratorCommand
     }
 
     /**
-     * @return array|string
+     * @return string
      */
     private function getSchemaName()
     {
@@ -143,6 +157,7 @@ class MigrationMakeCommand extends GeneratorCommand
         return Str::studly($this->argument('name'));
     }
 
+    #[\Override]
     public function getClass()
     {
         return $this->getClassName();
@@ -151,6 +166,7 @@ class MigrationMakeCommand extends GeneratorCommand
     /**
      * Run the command.
      */
+    #[\Override]
     public function handle(): int
     {
 

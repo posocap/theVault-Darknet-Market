@@ -12,6 +12,11 @@ class MigrationPublisher extends AssetPublisher
     private Migrator $migrator;
 
     /**
+     * Published migrations may be edited by the app, so existing files are kept unless forced.
+     */
+    protected bool $force = false;
+
+    /**
      * MigrationPublisher constructor.
      */
     public function __construct(Migrator $migrator)
@@ -23,14 +28,16 @@ class MigrationPublisher extends AssetPublisher
     /**
      * Get destination path.
      */
+    #[\Override]
     public function getDestinationPath(): string
     {
-        return $this->repository->config('paths.migration');
+        return $this->getRepository()->config('paths.migration');
     }
 
     /**
      * Get source path.
      */
+    #[\Override]
     public function getSourcePath(): string
     {
         return $this->migrator->getPath();

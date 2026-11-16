@@ -2,13 +2,18 @@
 
 namespace Nwidart\Modules;
 
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Illuminate\Contracts\Container\Container;
 use Nwidart\Modules\Support\Stub;
 
 class LumenModulesServiceProvider extends ModulesServiceProvider
 {
     /**
      * Booting the package.
+     *
+     * @return void
      */
+    #[\Override]
     public function boot()
     {
         $this->setupStubPath();
@@ -16,7 +21,10 @@ class LumenModulesServiceProvider extends ModulesServiceProvider
 
     /**
      * Register all modules.
+     *
+     * @return void
      */
+    #[\Override]
     public function register()
     {
         $this->registerNamespaces();
@@ -27,29 +35,34 @@ class LumenModulesServiceProvider extends ModulesServiceProvider
 
     /**
      * Setup stub path.
+     *
+     * @return void
      */
     public function setupStubPath()
     {
         Stub::setBasePath(__DIR__.'/Commands/stubs');
 
-        if (app('modules')->config('stubs.enabled') === true) {
-            Stub::setBasePath(app('modules')->config('stubs.path'));
+        /** @var Contracts\RepositoryInterface $modules */
+        $modules = app('modules');
+
+        if ($modules->config('stubs.enabled') === true) {
+            Stub::setBasePath($modules->config('stubs.path'));
         }
     }
 
     /**
      * {@inheritdoc}
+     *
+     * @return void
      */
+    #[\Override]
     protected function registerServices()
     {
-        $this->app->singleton(Contracts\RepositoryInterface::class, function ($app) {
-            $path = $app['config']->get('modules.paths.modules');
-
-            return new Lumen\LumenFileRepository($app, $path);
-        });
-        $this->app->singleton(Contracts\ActivatorInterface::class, function ($app) {
-            $activator = $app['config']->get('modules.activator');
-            $class = $app['config']->get('modules.activators.'.$activator)['class'];
+        $this->app->singleton(Contracts\RepositoryInterface::class, fn ($app) => new Lumen\LumenFileRepository($app));
+        $this->app->singleton(Contracts\ActivatorInterface::class, function (Container $app) {
+            $config = $app->make(ConfigRepository::class);
+            $activator = $config->get('modules.activator');
+            $class = $config->get('modules.activators.'.$activator)['class'];
 
             return new $class($app);
         });

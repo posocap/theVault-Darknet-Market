@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'driver' => env('SCOUT_DRIVER', 'algolia'),
+    'driver' => env('SCOUT_DRIVER', 'collection'),
 
     /*
     |--------------------------------------------------------------------------
@@ -204,6 +204,7 @@ return [
             //     ],
             // ],
         ],
+        'import_action' => env('TYPESENSE_IMPORT_ACTION', 'upsert'),
     ],
 
 ];

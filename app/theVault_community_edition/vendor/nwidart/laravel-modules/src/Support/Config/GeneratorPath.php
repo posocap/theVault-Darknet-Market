@@ -8,27 +8,37 @@ class GeneratorPath
 {
     use PathNamespace;
 
-    private $path;
+    /**
+     * The generator path. A legacy config holds the path itself, or false to skip the folder.
+     */
+    private readonly string|bool|null $path;
 
-    private $generate;
+    private readonly bool $generate;
 
-    private $namespace;
+    private readonly string $namespace;
 
+    /**
+     * @param  array<string, mixed>|string|bool|null  $config  The modules.paths.generator.<key> config.
+     */
     public function __construct($config)
     {
         if (is_array($config)) {
-            $this->path = $config['path'];
-            $this->generate = $config['generate'];
-            $this->namespace = $config['namespace'] ?? $this->path_namespace(ltrim($config['path'], config('modules.paths.app_folder', '')));
+            // A missing "generate" key means the folder is not scaffolded by module:make.
+            $this->path = $config['path'] ?? null;
+            $this->generate = (bool) ($config['generate'] ?? false);
+            $this->namespace = $config['namespace'] ?? $this->path_namespace($this->strip_app_folder((string) $this->path));
 
             return;
         }
 
         $this->path = $config;
         $this->generate = (bool) $config;
-        $this->namespace = $this->path_namespace(ltrim($config, config('modules.paths.app_folder', '')));
+        $this->namespace = $this->path_namespace($this->strip_app_folder((string) $config));
     }
 
+    /**
+     * @return string|bool|null
+     */
     public function getPath()
     {
         return $this->path;
@@ -39,6 +49,18 @@ class GeneratorPath
         return $this->generate;
     }
 
+    /**
+     * Whether this generator runs alongside a parent generator.
+     * Without its own path config, it follows the parent.
+     */
+    public function generatesWith(bool $parentGenerated): bool
+    {
+        return is_null($this->path) ? $parentGenerated : $this->generate;
+    }
+
+    /**
+     * @return string
+     */
     public function getNamespace()
     {
         return $this->studly_namespace($this->namespace);

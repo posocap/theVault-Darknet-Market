@@ -19,18 +19,20 @@ class ServiceMakeCommand extends GeneratorCommand
 
     protected $description = 'Create a new service class for the specified module.';
 
+    #[\Override]
     public function getDestinationFilePath(): string
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $filePath = GenerateConfigReader::read('services')->getPath() ?? config('modules.paths.app_folder').'Services';
 
         return $path.$filePath.'/'.$this->getServiceName().'.php';
     }
 
+    #[\Override]
     protected function getTemplateContents(): string
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub($this->getStubName(), [
             'CLASS_NAMESPACE' => $this->getClassNamespace($module),
@@ -38,6 +40,7 @@ class ServiceMakeCommand extends GeneratorCommand
         ]))->render();
     }
 
+    #[\Override]
     protected function getArguments(): array
     {
         return [
@@ -46,27 +49,33 @@ class ServiceMakeCommand extends GeneratorCommand
         ];
     }
 
+    #[\Override]
     protected function getOptions(): array
     {
         return [
             ['invokable', 'i', InputOption::VALUE_NONE, 'Generate an invokable service class', null],
-            ['force', 'f', InputOption::VALUE_NONE, 'su.'],
+            ['force', 'f', InputOption::VALUE_NONE, 'Overwrite the file if it already exists'],
         ];
     }
 
+    /**
+     * @return string|array<int, string>
+     */
     protected function getServiceName(): array|string
     {
         return Str::studly($this->argument('name'));
     }
 
-    private function getClassNameWithoutNamespace(): array|string
+    private function getClassNameWithoutNamespace(): string
     {
         return class_basename($this->getServiceName());
     }
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
-        return config('modules.paths.generator.services.namespace', 'Services');
+        return config('modules.paths.generator.services.namespace')
+            ?? $this->strip_app_folder(config('modules.paths.generator.services.path', 'Services'));
     }
 
     protected function getStubName(): string

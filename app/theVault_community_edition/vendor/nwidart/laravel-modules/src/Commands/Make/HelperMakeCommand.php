@@ -19,18 +19,20 @@ class HelperMakeCommand extends GeneratorCommand
 
     protected $description = 'Create a new helper class for the specified module.';
 
+    #[\Override]
     public function getDestinationFilePath(): string
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $filePath = GenerateConfigReader::read('helpers')->getPath() ?? config('modules.paths.app_folder').'Helpers';
 
         return $path.$filePath.'/'.$this->getHelperName().'.php';
     }
 
+    #[\Override]
     protected function getTemplateContents(): string
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub($this->getStubName(), [
             'CLASS_NAMESPACE' => $this->getClassNamespace($module),
@@ -38,6 +40,7 @@ class HelperMakeCommand extends GeneratorCommand
         ]))->render();
     }
 
+    #[\Override]
     protected function getArguments(): array
     {
         return [
@@ -46,27 +49,33 @@ class HelperMakeCommand extends GeneratorCommand
         ];
     }
 
+    #[\Override]
     protected function getOptions(): array
     {
         return [
             ['invokable', 'i', InputOption::VALUE_NONE, 'Generate an invokable class', null],
-            ['force', 'f', InputOption::VALUE_NONE, 'su.'],
+            ['force', 'f', InputOption::VALUE_NONE, 'Overwrite the file if it already exists'],
         ];
     }
 
+    /**
+     * @return string|array<int, string>
+     */
     protected function getHelperName(): array|string
     {
         return Str::studly($this->argument('name'));
     }
 
-    private function getClassNameWithoutNamespace(): array|string
+    private function getClassNameWithoutNamespace(): string
     {
         return class_basename($this->getHelperName());
     }
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
-        return config('modules.paths.generator.helpers.namespace', 'Helpers');
+        return config('modules.paths.generator.helpers.namespace')
+            ?? $this->strip_app_folder(config('modules.paths.generator.helpers.path', 'Helpers'));
     }
 
     protected function getStubName(): string

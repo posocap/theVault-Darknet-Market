@@ -6,10 +6,12 @@
  * @license   http://www.opensource.org/licenses/mit-license.html  MIT License
  */
 
-use phpseclib\Net\SCP;
-use phpseclib\Net\SSH2;
+namespace phpseclib3\Tests\Functional\Net;
 
-class Functional_Net_SCPSSH2UserStoryTest extends PhpseclibFunctionalTestCase
+use phpseclib3\Net\SCP;
+use phpseclib3\Tests\PhpseclibFunctionalTestCase;
+
+class SCPSSH2UserStoryTest extends PhpseclibFunctionalTestCase
 {
     static protected $remoteFile;
     static protected $exampleData;
@@ -23,25 +25,15 @@ class Functional_Net_SCPSSH2UserStoryTest extends PhpseclibFunctionalTestCase
         self::$exampleDataLength = 10000;
     }
 
-    public function testConstructSSH2()
+    public function testConstructor()
     {
-        $ssh = new SSH2($this->getEnv('SSH_HOSTNAME'));
+        $scp = new SCP($this->getEnv('SSH_HOSTNAME'));
         $this->assertTrue(
-            $ssh->login(
+            $scp->login(
                 $this->getEnv('SSH_USERNAME'),
                 $this->getEnv('SSH_PASSWORD')
             )
         );
-        return $ssh;
-    }
-
-    /**
-     * @depends testConstructSSH2
-     * @param \phpseclib\Net\SSH2 $ssh
-     */
-    public function testConstructor($ssh)
-    {
-        $scp = new SCP($ssh);
         $this->assertTrue(
             is_object($scp),
             'Could not construct \phpseclib\Net\SCP object.'
@@ -49,10 +41,7 @@ class Functional_Net_SCPSSH2UserStoryTest extends PhpseclibFunctionalTestCase
         return $scp;
     }
 
-    /**
-     * @depends testConstructor
-     * @param \phpseclib\Net\SCP $scp
-     */
+    /** @depends testConstructor */
     public function testPutGetString($scp)
     {
         $this->assertTrue(
@@ -73,10 +62,7 @@ class Functional_Net_SCPSSH2UserStoryTest extends PhpseclibFunctionalTestCase
         return $scp;
     }
 
-    /**
-     * @depends testPutGetString
-     * @param \phpseclib\Net\SCP $scp
-     */
+    /** @depends testPutGetString */
     public function testGetFile($scp)
     {
         $localFilename = $this->createTempFile();
@@ -86,24 +72,24 @@ class Functional_Net_SCPSSH2UserStoryTest extends PhpseclibFunctionalTestCase
         );
         $this->assertContains(
             filesize($localFilename),
-            array(self::$exampleDataLength, self::$exampleDataLength + 1),
+            [self::$exampleDataLength, self::$exampleDataLength + 1],
             'Failed asserting that filesize matches expected data size.'
         );
         $this->assertContains(
             file_get_contents($localFilename),
-            array(self::$exampleData, self::$exampleData . "\0"),
+            [self::$exampleData, self::$exampleData . "\0"],
             'Failed asserting that file content matches expected content.'
         );
         return $scp;
     }
 
     /**
-     * @depends testGetFile
      * @group github873
      */
+    /** @depends testGetFile */
     public function testGetBadFilePutGet($scp)
     {
-        $scp->ssh->exec('rm ' . self::$remoteFile);
+        $scp->exec('rm ' . self::$remoteFile);
         $this->assertFalse(
             $scp->get(self::$remoteFile),
             'Failed asserting that get() on a non-existant file failed'

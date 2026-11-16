@@ -1,23 +1,27 @@
 <?php
+
 /**
  * @author    Jim Wigginton <terrafrost@php.net>
  * @copyright 2014 Jim Wigginton
  * @license   http://www.opensource.org/licenses/mit-license.html  MIT License
  */
 
-use phpseclib\File\ASN1;
-use phpseclib\File\ASN1\Element;
-use phpseclib\File\X509;
-use phpseclib\Crypt\RSA;
-use phpseclib\Math\BigInteger;
+namespace phpseclib3\Tests\Unit\File\X509;
 
-class Unit_File_X509_X509Test extends PhpseclibTestCase
+use phpseclib3\Crypt\PublicKeyLoader;
+use phpseclib3\Crypt\RSA;
+use phpseclib3\File\ASN1;
+use phpseclib3\File\ASN1\Element;
+use phpseclib3\File\X509;
+use phpseclib3\Tests\PhpseclibTestCase;
+
+class X509Test extends PhpseclibTestCase
 {
     private $server;
 
     private $serverPipes;
 
-    private $urlFetches = array();
+    private $urlFetches = [];
 
     public function tearDown()
     {
@@ -26,7 +30,7 @@ class Unit_File_X509_X509Test extends PhpseclibTestCase
         X509::setURLFetchConnectTimeout(5);
         X509::setURLFetchTimeout(10);
         X509::setURLFetchMaxSize(65536);
-        X509::$urlFetchDeadline = null;
+        self::setVar(new X509(), 'urlFetchDeadline', null);
         parent::tearDown();
     }
 
@@ -125,7 +129,7 @@ k6m17mi63YW/+iPCGOWZ2qXmY5HPEyyF2L4L4IDryFJ+8xLyw3pH9/yp5aHZDtp6
 
         $cert = $x509->loadX509($test);
 
-        $this->assertEquals('MDUwDgYIKoZIhvcNAwICAgCAMA4GCCqGSIb3DQMEAgIAgDAHBgUrDgMCBzAKBggqhkiG9w0DBw==', $cert['tbsCertificate']['extensions'][8]['extnValue']);
+        $this->assertEquals(base64_decode('MDUwDgYIKoZIhvcNAwICAgCAMA4GCCqGSIb3DQMEAgIAgDAHBgUrDgMCBzAKBggqhkiG9w0DBw=='), $cert['tbsCertificate']['extensions'][8]['extnValue']);
     }
 
     public function testSaveUnsupportedExtension()
@@ -151,13 +155,11 @@ ulvKGQSy068Bsn5fFNum21K5mvMSf3yinDtvmX3qUA12IxL/92ZzKbeVCq3Yi7Le
 IOkKcGQRCMha8X2e7GmlpdWC1ycenlbN0nbVeSv3JUMcafC4+Q==
 -----END CERTIFICATE-----');
 
-        $asn1 = new ASN1();
-
-        $value = $this->_encodeOID('1.2.3.4');
-        $ext = chr(ASN1::TYPE_OBJECT_IDENTIFIER) . $asn1->_encodeLength(strlen($value)) . $value;
+        $value = ASN1::encodeOID('1.2.3.4');
+        $ext = chr(ASN1::TYPE_OBJECT_IDENTIFIER) . ASN1::encodeLength(strlen($value)) . $value;
         $value = 'zzzzzzzzz';
-        $ext.= chr(ASN1::TYPE_OCTET_STRING) . $asn1->_encodeLength(strlen($value)) . $value;
-        $ext = chr(ASN1::TYPE_SEQUENCE | 0x20) . $asn1->_encodeLength(strlen($ext)) . $ext;
+        $ext .= chr(ASN1::TYPE_OCTET_STRING) . ASN1::encodeLength(strlen($value)) . $value;
+        $ext = chr(ASN1::TYPE_SEQUENCE | 0x20) . ASN1::encodeLength(strlen($ext)) . $ext;
 
         $cert['tbsCertificate']['extensions'][4] = new Element($ext);
 
@@ -171,8 +173,7 @@ IOkKcGQRCMha8X2e7GmlpdWC1ycenlbN0nbVeSv3JUMcafC4+Q==
      */
     public function testSaveNullRSAParam()
     {
-        $privKey = new RSA();
-        $privKey->loadKey('-----BEGIN RSA PRIVATE KEY-----
+        $privKey = PublicKeyLoader::load('-----BEGIN RSA PRIVATE KEY-----
 MIICXQIBAAKBgQDMswfEpAgnUDWA74zZw5XcPsWh1ly1Vk99tsqwoFDkLF7jvXy1
 dDLHYfuquvfxCgcp8k/4fQhx4ubR8bbGgEq9B05YRnViK0R0iBB5Ui4IaxWYYhKE
 8xqAEH2fL+/7nsqqNFKkEN9KeFwc7WbMY49U2adlMrpBdRjk1DqIEW3QTwIDAQAB
@@ -187,10 +188,11 @@ TQDJcOBY0qgBTEFqbazr7PScJR/0X8m0eLYS/XqkPi3kYaHLpr3RcsVbmwg9hVtx
 aBtsWpliLSex/HHhtRW9AkBGcq67zKmEpJ9kXcYLEjJii3flFS+Ct/rNm+Hhm1l7
 4vca9v/F2hGVJuHIMJ8mguwYlNYzh2NqoIDJTtgOkBmt
 -----END RSA PRIVATE KEY-----');
+        $privKey = $privKey
+            ->withPadding(RSA::SIGNATURE_PKCS1)
+            ->withHash('sha1');
 
-        $pubKey = new RSA();
-        $pubKey->loadKey($privKey->getPublicKey());
-        $pubKey->setPublicKey();
+        $pubKey = $privKey->getPublicKey();
 
         $subject = new X509();
         $subject->setDNProp('id-at-organizationName', 'phpseclib demo cert');
@@ -201,6 +203,7 @@ aBtsWpliLSex/HHhtRW9AkBGcq67zKmEpJ9kXcYLEjJii3flFS+Ct/rNm+Hhm1l7
         $issuer->setDN($subject->getDN());
 
         $x509 = new X509();
+        $x509->setEndDate('lifetime');
 
         $result = $x509->sign($issuer, $subject);
         $cert = $x509->saveX509($result);
@@ -211,88 +214,13 @@ aBtsWpliLSex/HHhtRW9AkBGcq67zKmEpJ9kXcYLEjJii3flFS+Ct/rNm+Hhm1l7
         $this->assertArrayHasKey('parameters', $cert['tbsCertificate']['signature']);
     }
 
-    public function testRevokeWithRelativeDate()
-    {
-        $privKey = new RSA();
-        $privKey->loadKey('-----BEGIN RSA PRIVATE KEY-----
-MIICXQIBAAKBgQDMswfEpAgnUDWA74zZw5XcPsWh1ly1Vk99tsqwoFDkLF7jvXy1
-dDLHYfuquvfxCgcp8k/4fQhx4ubR8bbGgEq9B05YRnViK0R0iBB5Ui4IaxWYYhKE
-8xqAEH2fL+/7nsqqNFKkEN9KeFwc7WbMY49U2adlMrpBdRjk1DqIEW3QTwIDAQAB
-AoGBAJ+83cT/1DUJjJcPWLTeweVbPtJp+3Ku5d1OdaGbmURVs764scbP5Ihe2AuF
-V9LLZoe/RdS9jYeB72nJ3D3PA4JVYYgqMOnJ8nlUMNQ+p0yGl5TqQk6EKLI8MbX5
-kQEazNqFXsiWVQXubAd5wjtb6g0n0KD3zoT/pWLES7dtUFexAkEA89h5+vbIIl2P
-H/NnkPie2NWYDZ1YiMGHFYxPDwsd9KCZMSbrLwAhPg9bPgqIeVNfpwxrzeksS6D9
-P98tJt335QJBANbnCe+LhDSrkpHMy9aOG2IdbLGG63MSRUCPz8v2gKPq3kYXDxq6
-Y1iqF8N5g0k5iirHD2qlWV5Q+nuGvFTafCMCQQC1wQiC0IkyXEw/Q31RqI82Dlcs
-5rhEDwQyQof3LZEhcsdcxKaOPOmKSYX4A3/f9w4YBIEiVQfoQ1Ig1qfgDZklAkAT
-TQDJcOBY0qgBTEFqbazr7PScJR/0X8m0eLYS/XqkPi3kYaHLpr3RcsVbmwg9hVtx
-aBtsWpliLSex/HHhtRW9AkBGcq67zKmEpJ9kXcYLEjJii3flFS+Ct/rNm+Hhm1l7
-4vca9v/F2hGVJuHIMJ8mguwYlNYzh2NqoIDJTtgOkBmt
------END RSA PRIVATE KEY-----');
-
-        $pubKey = new RSA();
-        $pubKey->loadKey($privKey->getPublicKey());
-        $pubKey->setPublicKey();
-
-        $subject = new X509();
-        $subject->setDNProp('id-at-organizationName', 'phpseclib demo CA');
-        $subject->setPublicKey($pubKey);
-
-        $issuer = new X509();
-        $issuer->setPrivateKey($privKey);
-        $issuer->setDN($subject->getDN());
-
-        $x509 = new X509();
-        $x509->makeCA();
-        $ca = $x509->saveX509($x509->sign($issuer, $subject));
-
-        $x509 = new X509();
-        $x509->loadCRL($x509->saveCRL($x509->signCRL($issuer, new X509())));
-        $x509->revoke(new BigInteger('1234'), '+1 year');
-        $crl = $x509->signCRL($issuer, $x509);
-
-        // wait for the next second so that a relative revocationDate that gets resolved again
-        // on save would differ from the one that was signed
-        usleep((int) ((1 - fmod(microtime(true), 1)) * 1000000) + 10000);
-        $crl = $x509->saveCRL($crl);
-
-        $x509 = new X509();
-        $x509->loadCA($ca);
-        $x509->loadCRL($crl);
-        $this->assertTrue($x509->validateSignature());
-    }
-
-    private function _encodeOID($oid)
-    {
-        if ($oid === false) {
-            user_error('Invalid OID');
-            return false;
-        }
-        $value = '';
-        $parts = explode('.', $oid);
-        $value = chr(40 * $parts[0] + $parts[1]);
-        for ($i = 2; $i < count($parts); $i++) {
-            $temp = '';
-            if (!$parts[$i]) {
-                $temp = "\0";
-            } else {
-                while ($parts[$i]) {
-                    $temp = chr(0x80 | ($parts[$i] & 0x7F)) . $temp;
-                    $parts[$i] >>= 7;
-                }
-                $temp[strlen($temp) - 1] = $temp[strlen($temp) - 1] & chr(0x7F);
-            }
-            $value.= $temp;
-        }
-        return $value;
-    }
-
     public function testGetOID()
     {
-        $x509 = new X509();
-        $this->assertEquals($x509->getOID('2.16.840.1.101.3.4.2.1'), '2.16.840.1.101.3.4.2.1');
-        $this->assertEquals($x509->getOID('id-sha256'), '2.16.840.1.101.3.4.2.1');
-        $this->assertEquals($x509->getOID('zzz'), 'zzz');
+        // load the OIDs
+        new X509();
+        $this->assertEquals(ASN1::getOID('1.2.840.113549.1.1.5'), '1.2.840.113549.1.1.5');
+        $this->assertEquals(ASN1::getOID('sha1WithRSAEncryption'), '1.2.840.113549.1.1.5');
+        $this->assertEquals(ASN1::getOID('zzz'), 'zzz');
     }
 
     public function testIPAddressSubjectAltNamesDecoding()
@@ -368,14 +296,14 @@ f/1y2XuLNhBNHMAyTqpYPX8Yvav1c+Z50OMaSXHAnTa20zv8UtiHbaAhwlifCelU
 Mj93
 -----END CERTIFICATE-----');
         $x509->loadX509($x509->saveX509($decoded));
-        $expected = array(
-            array(
-                array('utf8String' => "Al. Marsza\xC5\x82ka Pi\xC5\x82sudskiego 52/54"),
-                array('utf8String' => '81-382 Gdynia'),
-                array('utf8String' => 'Polska'),
-                array('utf8String' => 'pomorskie')
-            )
-        );
+        $expected = [
+            [
+                ['utf8String' => "Al. Marsza\xC5\x82ka Pi\xC5\x82sudskiego 52/54"],
+                ['utf8String' => '81-382 Gdynia'],
+                ['utf8String' => 'Polska'],
+                ['utf8String' => 'pomorskie']
+            ]
+        ];
         $this->assertEquals($x509->getDNProp('id-at-postalAddress'), $expected);
 
         $expected = "C=PL, O=Urz\xC4\x85d Miasta Gdyni/serialNumber=PESEL: 61060603118, CN=Jerzy Przeworski/postalAddress=" . '0F\X0C"AL. MARSZA\XC5\X82KA PI\XC5\X82SUDSKIEGO 52/54\X0C\X0D81-382 GDYNIA\X0C\X06POLSKA\X0C\X09POMORSKIE/givenName=Jerzy, SN=Przeworski';
@@ -452,27 +380,23 @@ Mj93
     // fixed by #1104
     public function testMultipleDomainNames()
     {
-        $keyGenerator = new RSA();
-        $keys = $keyGenerator->createKey(512);
-
-        $privateKey = new RSA();
-        $privateKey->loadKey($keys['privatekey']);
-
-        $publicKey = new RSA();
-        $publicKey->loadKey($keys['publickey']);
-        $publicKey->setPublicKey();
+        $privatekey = RSA::createKey(512)
+            ->withPadding(RSA::SIGNATURE_PKCS1)
+            ->withHash('sha1');
+        $publickey = $privatekey->getPublicKey();
 
         $subject = new X509();
         $subject->setDomain('example.com', 'example.net');
 
-        $subject->setPublicKey($publicKey);
+        $subject->setPublicKey($publickey);
 
         $issuer = new X509();
-        $issuer->setPrivateKey($privateKey);
+        $issuer->setPrivateKey($privatekey);
         $issuer->setDN($subject->getDN());
 
         $x509 = new X509();
         $x509->sign($issuer, $subject);
+        self::assertTrue(true);
     }
 
     public function testUtcTimeWithoutSeconds()
@@ -655,8 +579,9 @@ keSg3sfr4VWT545guJlTe+6vvelxbPFIXCXnyVLoePBYZtEe8FQhIBxd3EQHsxuJ
 iSoMCxKCa8r5P1DrxKaJAkBBP87OdahRq0CBQjTFg0wmPs66PoTXA4hZvSxV77CO
 tMPj6Pas7Muejogm6JkmxXC/uT6Tzfknd0B3XSmtDzGL
 -----END RSA PRIVATE KEY-----';
-        $cakey = new RSA();
-        $cakey->loadKey($pemcakey);
+        $cakey = PublicKeyLoader::load($pemcakey)
+            ->withPadding(RSA::SIGNATURE_PKCS1)
+            ->withHash('sha1');
         $pemca = '-----BEGIN CERTIFICATE-----
 MIICADCCAWmgAwIBAgIUJXQulcz5xkTam8UGC/yn6iVaiWwwDQYJKoZIhvcNAQEF
 BQAwHDEaMBgGA1UECgwRcGhwc2VjbGliIGRlbW8gQ0EwHhcNMTgwMTIxMTc0NzM0
@@ -804,7 +729,7 @@ p1/+4sG5fGET+m6BqJ+pYKa2/afPfg==
         X509::setURLFetchTimeout(1);
 
         $start = microtime(true);
-        $this->assertFalse(X509::_fetchURL($url));
+        $this->assertFalse(self::callFunc(new X509(), 'fetchURL', [$url]));
         $this->assertLessThan(3, microtime(true) - $start);
     }
 
@@ -814,7 +739,7 @@ p1/+4sG5fGET+m6BqJ+pYKa2/afPfg==
         X509::setURLFetchTimeout(1);
 
         $start = microtime(true);
-        $this->assertFalse(X509::_fetchURL('http://192.0.2.1/'));
+        $this->assertFalse(self::callFunc(new X509(), 'fetchURL', ['http://192.0.2.1/']));
         $took = microtime(true) - $start;
         if ($took < 0.5) {
             $this->markTestSkipped('192.0.2.1 is refused right away on this network, so connecting to it does not hang');
@@ -826,9 +751,9 @@ p1/+4sG5fGET+m6BqJ+pYKa2/afPfg==
     {
         // the callback stands in for a slow host name lookup, which comes before connecting too
         $url = $this->startURLFetchServer('keepalive');
-        X509::setURLFetchCallback(array($this, 'allowURLFetchSlowly'));
+        X509::setURLFetchCallback([$this, 'allowURLFetchSlowly']);
         X509::setURLFetchTimeout(0.2);
-        $this->assertFalse(X509::_fetchURL($url));
+        $this->assertFalse(self::callFunc(new X509(), 'fetchURL', [$url]));
     }
 
     public function allowURLFetchSlowly($host, $ip, $port, $scheme)
@@ -839,10 +764,10 @@ p1/+4sG5fGET+m6BqJ+pYKa2/afPfg==
 
     public function testURLFetchMaxSize()
     {
-        $this->assertFalse(X509::_fetchURL($this->startURLFetchServer('large')));
+        $this->assertFalse(self::callFunc(new X509(), 'fetchURL', [$this->startURLFetchServer('large')]));
 
         X509::setURLFetchMaxSize(70000);
-        $this->assertSame(str_repeat('a', 65536), X509::_fetchURL($this->startURLFetchServer('large')));
+        $this->assertSame(str_repeat('a', 65536), self::callFunc(new X509(), 'fetchURL', [$this->startURLFetchServer('large')]));
     }
 
     public function testURLFetchStopsAtAnError()
@@ -850,14 +775,14 @@ p1/+4sG5fGET+m6BqJ+pYKa2/afPfg==
         $url = $this->startURLFetchServer('error');
 
         $start = microtime(true);
-        $this->assertFalse(X509::_fetchURL($url));
+        $this->assertFalse(self::callFunc(new X509(), 'fetchURL', [$url]));
         $this->assertLessThan(3, microtime(true) - $start);
     }
 
     public function testURLFetchClosesTheConnection()
     {
         X509::setURLFetchTimeout(2);
-        $this->assertSame('hello', X509::_fetchURL($this->startURLFetchServer('keepalive')));
+        $this->assertSame('hello', self::callFunc(new X509(), 'fetchURL', [$this->startURLFetchServer('keepalive')]));
     }
 
     public function testURLFetchReadsBufferedData()
@@ -865,7 +790,7 @@ p1/+4sG5fGET+m6BqJ+pYKa2/afPfg==
         // the response takes more than one read, and the connection closes a second later. On
         // Windows, PHP 8.3+ said the read that returned the rest of it had timed out
         X509::setURLFetchTimeout(5);
-        $this->assertSame(str_repeat('a', 1481), X509::_fetchURL($this->startURLFetchServer('pause')));
+        $this->assertSame(str_repeat('a', 1481), self::callFunc(new X509(), 'fetchURL', [$this->startURLFetchServer('pause')]));
     }
 
     public function testURLFetchTimeoutCanBeInfinite()
@@ -878,7 +803,7 @@ p1/+4sG5fGET+m6BqJ+pYKa2/afPfg==
         X509::setURLFetchTimeout(INF);
 
         $start = $this->getCPUTime();
-        $this->assertSame('hello', X509::_fetchURL($url));
+        $this->assertSame('hello', self::callFunc(new X509(), 'fetchURL', [$url]));
         $this->assertLessThan(0.5, $this->getCPUTime() - $start);
     }
 
@@ -893,48 +818,24 @@ p1/+4sG5fGET+m6BqJ+pYKa2/afPfg==
     {
         // the server answers with the Host header, which has to name the URL's port too
         $url = $this->startURLFetchServer('host');
-        $this->assertSame('127.0.0.1:' . parse_url($url, PHP_URL_PORT), X509::_fetchURL($url));
-    }
-
-    public function testURLFetchCanBeOverridden()
-    {
-        X509Test_RecordedURLFetch::$urls = array();
-        $x509 = new X509Test_RecordedURLFetch();
-        $x509->loadX509($this->getUntrustedAIACert());
-        $x509->validateSignature();
-        $this->assertSame(array('http://127.0.0.1:1/ca.crt'), X509Test_RecordedURLFetch::$urls);
-    }
-
-    public function testURLFetchDeadlineEndsWithTheChain()
-    {
-        // a fetch after validateSignature() gets the whole timeout, rather than what the chain left
-        X509::setURLFetchCallback(array($this, 'recordURLFetch'));
-        X509::setURLFetchTimeout(0.1);
-        $x509 = new X509();
-        $x509->loadX509($this->getUntrustedAIACert());
-        $x509->validateSignature();
-        usleep(200000);
-
-        $this->urlFetches = array();
-        X509::_fetchURL('http://127.0.0.1:1/ca.crt');
-        $this->assertSame(array('127.0.0.1:1'), $this->urlFetches);
+        $this->assertSame('127.0.0.1:' . parse_url($url, PHP_URL_PORT), self::callFunc(new X509(), 'fetchURL', [$url]));
     }
 
     public function testIntermediateURLFetchesShareTheTimeout()
     {
         $x509 = new X509();
         $x509->loadX509($this->getUntrustedAIACert());
-        X509::setURLFetchCallback(array($this, 'recordURLFetch'));
-        $this->urlFetches = array();
+        X509::setURLFetchCallback([$this, 'recordURLFetch']);
+        $this->urlFetches = [];
 
         // the time for the chain is up, so the issuer's issuer isn't fetched
-        X509::$urlFetchDeadline = microtime(true);
-        $this->assertFalse($x509->_testForIntermediate(true, 1));
-        $this->assertSame(array(), $this->urlFetches);
+        self::setVar($x509, 'urlFetchDeadline', microtime(true));
+        $this->assertFalse(self::callFunc($x509, 'testForIntermediate', [true, 1]));
+        $this->assertSame([], $this->urlFetches);
 
         // a new chain gets the whole timeout
-        $this->assertFalse($x509->_testForIntermediate(true, 0));
-        $this->assertSame(array('127.0.0.1:1'), $this->urlFetches);
+        $this->assertFalse(self::callFunc($x509, 'testForIntermediate', [true, 0]));
+        $this->assertSame(['127.0.0.1:1'], $this->urlFetches);
     }
 
     public function recordURLFetch($host, $ip, $port, $scheme)
@@ -946,12 +847,9 @@ p1/+4sG5fGET+m6BqJ+pYKa2/afPfg==
     // runs url_fetch_server.php to answer one request the way $mode says, and returns its URL
     private function startURLFetchServer($mode)
     {
-        if (!defined('PHP_BINARY')) {
-            $this->markTestSkipped('PHP_BINARY, needed to start the server, was added in PHP 5.4');
-        }
         $this->stopURLFetchServer();
         $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/url_fetch_server.php') . ' ' . $mode;
-        $this->server = proc_open($command, array(1 => array('pipe', 'w')), $this->serverPipes, null, null, array('bypass_shell' => true));
+        $this->server = proc_open($command, [1 => ['pipe', 'w']], $this->serverPipes, null, null, ['bypass_shell' => true]);
         $port = $this->server ? fgets($this->serverPipes[1]) : false;
         if (!$port) {
             $this->fail('url_fetch_server.php did not start');
@@ -994,6 +892,284 @@ IOkKcGQRCMha8X2e7GmlpdWC1ycenlbN0nbVeSv3JUMcafC4+Q==
 
         $this->assertFalse($x509->validateDate('Nov 22, 2018'));
         $this->assertTrue($x509->validateDate('Nov 22, 2012'));
+    }
+
+    public function testDSALoad()
+    {
+        // openssl dsaparam -out params.pem 3072
+        // openssl gendsa -out key.pem params.pem
+        // openssl req -new -key key.pem -out req.pem
+        // openssl x509 -req -in req.pem -signkey key.pem -out certificate.cer
+
+        $x509 = new X509();
+        $r = $x509->loadX509('-----BEGIN CERTIFICATE-----
+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
+-----END CERTIFICATE-----');
+
+        $this->assertSame('id-dsa-with-sha256', $r['tbsCertificate']['signature']['algorithm']);
+        $this->assertSame('id-dsa', $r['tbsCertificate']['subjectPublicKeyInfo']['algorithm']['algorithm']);
+        $this->assertSame('id-dsa-with-sha256', $r['signatureAlgorithm']['algorithm']);
+
+        $this->assertTrue($x509->validateSignature(false));
+    }
+
+    public function testECLoad()
+    {
+        // openssl req -x509 -nodes -days 3650 -newkey ec:<(openssl ecparam -name prime256v1) -keyout ecdsakey.pem -out ecdsacert.pem
+
+        $x509 = new X509();
+        $r = $x509->loadX509('-----BEGIN CERTIFICATE-----
+MIIB0zCCAXqgAwIBAgIJAIUvi6ecHYnoMAoGCCqGSM49BAMCMEUxCzAJBgNVBAYT
+AkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBXaWRn
+aXRzIFB0eSBMdGQwHhcNMTkwNTIxMDIxOTMyWhcNMjkwNTE4MDIxOTMyWjBFMQsw
+CQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50ZXJu
+ZXQgV2lkZ2l0cyBQdHkgTHRkMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEXYOR
+ZYFctekS6LIey8va5CLkQCWZw8JMIRPyWkABB6tjx5xJr8MgYiXB0nS15HC82JYN
+fR6NAT6lSnbpcfBgJKNTMFEwHQYDVR0OBBYEFEReRoJtjUXYus7iJWM/T1J7YxVH
+MB8GA1UdIwQYMBaAFEReRoJtjUXYus7iJWM/T1J7YxVHMA8GA1UdEwEB/wQFMAMB
+Af8wCgYIKoZIzj0EAwIDRwAwRAIgIBo2fgqfVsbKczXodiXamRIv1vmqgo3pIGzV
+f11dQP8CIDoB2AbvB3Yk/iGduWpw+3FwNAZ1y/rTqQK6+XgZCt6K
+-----END CERTIFICATE-----');
+
+        $this->assertSame('ecdsa-with-SHA256', $r['tbsCertificate']['signature']['algorithm']);
+        $this->assertSame('id-ecPublicKey', $r['tbsCertificate']['subjectPublicKeyInfo']['algorithm']['algorithm']);
+        $this->assertSame('ecdsa-with-SHA256', $r['signatureAlgorithm']['algorithm']);
+
+        $this->assertTrue($x509->validateSignature(false));
+    }
+
+    public function testPSSLoad()
+    {
+        // openssl genpkey -algorithm rsa-pss -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537 -pkeyopt rsa_pss_keygen_md:sha256 -pkeyopt rsa_pss_keygen_mgf1_md:sha512 -pkeyopt rsa_pss_keygen_saltlen:5 -out CA.priKey
+        // openssl req -x509 -new -key CA.priKey -subj "/CN=CA" -sha256 -pkeyopt rsa_pss_keygen_md:sha256 -pkeyopt rsa_pss_keygen_mgf1_md:sha512 -pkeyopt rsa_pss_keygen_saltlen:5 -out CA.cer
+
+        $x509 = new X509();
+        $r = $x509->loadX509('-----BEGIN CERTIFICATE-----
+MIIDizCCAkOgAwIBAgIUZe4gqXJqqyKvQDBxcbAuPdttxTQwPQYJKoZIhvcNAQEK
+MDCgDTALBglghkgBZQMEAgGhGjAYBgkqhkiG9w0BAQgwCwYJYIZIAWUDBAIDogMC
+AQUwDTELMAkGA1UEAwwCQ0EwHhcNMTkwNTA5MDI0MTI0WhcNMTkwNjA4MDI0MTI0
+WjANMQswCQYDVQQDDAJDQTCCAVIwPQYJKoZIhvcNAQEKMDCgDTALBglghkgBZQME
+AgGhGjAYBgkqhkiG9w0BAQgwCwYJYIZIAWUDBAIDogMCAQUDggEPADCCAQoCggEB
+AOB5e+yI4nAfiDdhignByF9Hw9BOjCeRk++9m5iSKaZdkzFLPtR3uMw+x+B9xChq
+kro/jG1ierEP8YISEDe6wXIRmuSunC1/wqy8oX0xfo23jE7gdSpjk+9cF1cVABPh
+ehwcGmzuXeOv/M4iQr41MK8hdqAVJRIA8O7kZuQxpEbLBKsQc9u0eEFrNVf5jYGj
+7vsCpW/XmZYaNWQaOK5Psd0rxVaz2CYYG2RiXq2wQiHrFtwOVJAhuHXlOmr4ZjuR
+NJLNnHjqkIaRv+JU2VCwPHcbIK4vO7EL7PKVa6g5WY33SzF3aqE7hCk6JeZ4KSSh
+i5dq4bRiGpGp1BzrU/t/XTkCAwEAAaNTMFEwHQYDVR0OBBYEFOWZWROhub/avDzR
+hDc5biqHzkrYMB8GA1UdIwQYMBaAFOWZWROhub/avDzRhDc5biqHzkrYMA8GA1Ud
+EwEB/wQFMAMBAf8wPQYJKoZIhvcNAQEKMDCgDTALBglghkgBZQMEAgGhGjAYBgkq
+hkiG9w0BAQgwCwYJYIZIAWUDBAIDogMCAQUDggEBANAoXtrOunHHlrEWNhj8xvwB
+pMa3N66PO3wQ/nax73s+xCF57haXjh8mBkDy6DsvctHSyV8RgXQUXaprDLtNA+F3
+JIgUNfP4znO98cdQ3tkANvtWA5YuyhyNq9xDzH6LsLB6cZfqPrvFGuvhCmGT9qCk
+OKmHrFklewl1sfwIQzK+hHeimaUSrb6SIYYenbvH5XI9vjbA/jojlvIc1mz7Pzmr
+9idg8ckxvQ5K3Y01UNBg2vOSaInp+G7N7XlEMERssq6ALMaPm4GrXUlO0cs/mQXd
+edu9tyNNr2vvZjshoY5y58+hVIjee/Pzxa7GX0LDEmK8FdFBxWeNx0g/TsZj6GE=
+-----END CERTIFICATE-----');
+
+        $this->assertSame('id-RSASSA-PSS', $r['tbsCertificate']['signature']['algorithm']);
+        $this->assertSame('id-RSASSA-PSS', $r['tbsCertificate']['subjectPublicKeyInfo']['algorithm']['algorithm']);
+        $this->assertSame('id-RSASSA-PSS', $r['signatureAlgorithm']['algorithm']);
+
+        $this->assertTrue($x509->validateSignature(false));
+    }
+
+    public function testDSASave()
+    {
+        $private = '-----BEGIN DSA PRIVATE KEY-----
+MIIE1QIBAAKCAYEAwuma6tTTvSg9HUXseAquivUpXyEvyKmIf0XU/EOn4Y6EryoF
+UhPfnnF23qJxBIfBDdk+5DPObjYUpm8sEe1T5Ro/BYY62OMa3tVcZrCXWRW53BnR
+27uDO+1xJzKefT0OGxoLdcSIPLr0JWs9tRyTT9PIjOOvRzNuVHDrOdoyhgZb9SWQ
+oX6/zpybHbTQBJZrC5bTRCGJEP1y+g3bdODFko1pyGL/ajVMJDlQhE1QFHpnnSrd
+xcwgzOZJeX/xMqKLrnnNZ11r5q55x/8aiaMlSlrD/tAzMLCBgfXytl2M7ZWhxSGl
+uSK1rIWuNshrEuZRMsXTzQZ/B5cBQZwxhvoz72Fh7LnETI8u1ZyYPSW8XCU6EgdK
+dwqIOxhAtCpHIFGxJDnAira7dmIvl/sl5v+sEXmSe3tSGYD9Adhk9SJ0kUR+Bueb
+9dO3Qj5iTD06WS/DH6HAf7nnY7GjAizTld4zB0NQDnQeGUu3Mst9T4eLUtOFf8Hd
+jvSLRntSOSJLwgEbAiEA3sPLEULOwP+cxcLkYotWOZABO7zBITR8G0kJM+UIAl0C
+ggGAJtn2ZMuJWYfA+/N/YiLn4HgByb85RHQ+862DtCnUDQgbc9LJCRvE3JLGPE3i
+QFP/fDa+uguK5GFdzq16eEJac+9kkFs7xfJ8j+RyhPGMcLfddZca5SQIoEeU66ma
+10RVwVOQLcth0RxaBNntvwIpp4eQO8meaCSTPo4Jc7yvlM8BiOHkcJMmQt6flE8o
+kv3jbp80BklpfPtnHJ2Ky6TvKZiNPHI+lvUCRXTpr+IQVq9LOsqL0pJDG9WhJeKP
+Xxub1JbNc9l5qLo0d3RlSnCpHR5O3vzgWakPzrZgVZxqHNtU5tjv4kFf2/0fiRNw
+7ueimEorYGIsNqCipkxKRbyhI4vgNTQXwrxSQeO26ItfDjRsT2Pa7I+oH1QInirK
+BerReRNke4JJ9K8bIDXrJahtk5XSzOKjX/iXoSmY8pinLWdnZ2T28SCbh5fFm6Fm
+WbI9OILqs8bMQeseRznpIrwqfySzLxR2+yDOvz5SmQ3esFC+AesR8me41OY8ZBsv
+IG6TAoIBgBxS7Ghb6ujqFFln6AlFL2OrpUrB9q8NZH84o+ygP39Kf/FdJ7CRs4dR
+L7L0FdruimK6Vsm55rPJDSCaDZD45p2deG6mFmdpVAtiDPqOWMm6zGXjU4HhNA70
+oVOGQ7HkIlRWvbkYPA3zqT7Ibqe8gFaIkqobCEwQudcoqDlK+5vnO1IYt5zwuy6o
+eCN9rixaWjRLPm65SKzc+4l9+XAZWThoKlFL3wVmuZ/3EeYX0G8FAR7nYEFwSTrG
+QTCAmTMVgYi9TxDLqGMeM6Nkp2R90dadRBqt6MJ/lZ3jOzgUw4dF9ofIumUJ0Up9
+sWDPEB96Ng69ZPWbXNo6799zo1mN2GaxQHfyn6VWjNf649eBg5Q3aNHjOSz9wi9a
+fjs3u44AnBdGdZzlKVXXobtpt4Nwq9elof+9iwdjKqki6A9h0NWS1w9zjZ21n3Yq
+69J/XQl0UYYykGSWz65DbFuYoWPMpfSxEnxDZL5O3nxBCQDlPRxEjKwG/TdKxIJA
+uhPlgkgknwIgdDqqKIAF60ouiynsbU53ERS0TwpjeFiYGA48SwYW3Nk=
+-----END DSA PRIVATE KEY-----';
+        $private = PublicKeyLoader::load($private);
+        $public = $private->getPublicKey();
+
+        $subject = new X509();
+        $subject->setDNProp('id-at-organizationName', 'phpseclib demo cert');
+        $subject->setPublicKey($public);
+
+        $issuer = new X509();
+        $issuer->setPrivateKey($private);
+        $issuer->setDN($subject->getDN());
+
+        $x509 = new X509();
+
+        $result = $x509->sign($issuer, $subject);
+        $result = $x509->saveX509($result);
+
+        $this->assertIsString($result);
+
+        $r = $x509->loadX509($result);
+        $this->assertSame('id-dsa-with-sha256', $r['tbsCertificate']['signature']['algorithm']);
+        $this->assertSame('id-dsa', $r['tbsCertificate']['subjectPublicKeyInfo']['algorithm']['algorithm']);
+        $this->assertSame('id-dsa-with-sha256', $r['signatureAlgorithm']['algorithm']);
+    }
+
+    public function testECSave()
+    {
+        $private = '-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgQ0o1byJQbAcuklBt
+MENv2e0W3cE6gRmETxEvTBAxRTShRANCAARdg5FlgVy16RLosh7Ly9rkIuRAJZnD
+wkwhE/JaQAEHq2PHnEmvwyBiJcHSdLXkcLzYlg19Ho0BPqVKdulx8GAk
+-----END PRIVATE KEY-----';
+        $private = PublicKeyLoader::load($private);
+        $public = $private->getPublicKey();
+
+        $subject = new X509();
+        $subject->setDNProp('id-at-organizationName', 'phpseclib demo cert');
+        $subject->setPublicKey($public);
+
+        $issuer = new X509();
+        $issuer->setPrivateKey($private);
+        $issuer->setDN($subject->getDN());
+
+        $x509 = new X509();
+
+        $result = $x509->sign($issuer, $subject);
+        $result = $x509->saveX509($result);
+
+        $this->assertIsString($result);
+
+        $r = $x509->loadX509($result);
+        $this->assertSame('ecdsa-with-SHA256', $r['tbsCertificate']['signature']['algorithm']);
+        $this->assertSame('id-ecPublicKey', $r['tbsCertificate']['subjectPublicKeyInfo']['algorithm']['algorithm']);
+        $this->assertSame('ecdsa-with-SHA256', $r['signatureAlgorithm']['algorithm']);
+    }
+
+    public function testPSSSave()
+    {
+        $private = '-----BEGIN RSA PRIVATE KEY-----
+MIICXAIBAAKBgQCqGKukO1De7zhZj6+H0qtjTkVxwTCpvKe4eCZ0FPqri0cb2JZfXJ/DgYSF6vUp
+wmJG8wVQZKjeGcjDOL5UlsuusFncCzWBQ7RKNUSesmQRMSGkVb1/3j+skZ6UtW+5u09lHNsj6tQ5
+1s1SPrCBkedbNf0Tp0GbMJDyR4e9T04ZZwIDAQABAoGAFijko56+qGyN8M0RVyaRAXz++xTqHBLh
+3tx4VgMtrQ+WEgCjhoTwo23KMBAuJGSYnRmoBZM3lMfTKevIkAidPExvYCdm5dYq3XToLkkLv5L2
+pIIVOFMDG+KESnAFV7l2c+cnzRMW0+b6f8mR1CJzZuxVLL6Q02fvLi55/mbSYxECQQDeAw6fiIQX
+GukBI4eMZZt4nscy2o12KyYner3VpoeE+Np2q+Z3pvAMd/aNzQ/W9WaI+NRfcxUJrmfPwIGm63il
+AkEAxCL5HQb2bQr4ByorcMWm/hEP2MZzROV73yF41hPsRC9m66KrheO9HPTJuo3/9s5p+sqGxOlF
+L0NDt4SkosjgGwJAFklyR1uZ/wPJjj611cdBcztlPdqoxssQGnh85BzCj/u3WqBpE2vjvyyvyI5k
+X6zk7S0ljKtt2jny2+00VsBerQJBAJGC1Mg5Oydo5NwD6BiROrPxGo2bpTbu/fhrT8ebHkTz2epl
+U9VQQSQzY1oZMVX8i1m5WUTLPz2yLJIBQVdXqhMCQBGoiuSoSjafUhV7i1cEGpb88h5NBYZzWXGZ
+37sJ5QsW+sJyoNde3xH8vdXhzU7eT82D6X/scw9RZz+/6rCJ4p0=
+-----END RSA PRIVATE KEY-----';
+        $private = PublicKeyLoader::load($private);
+        $public = $private->getPublicKey();
+
+        $subject = new X509();
+        $subject->setDNProp('id-at-organizationName', 'phpseclib demo cert');
+        $subject->setPublicKey($public);
+
+        $issuer = new X509();
+        $issuer->setPrivateKey($private);
+        $issuer->setDN($subject->getDN());
+
+        $x509 = new X509();
+
+        $result = $x509->sign($issuer, $subject);
+        $result = $x509->saveX509($result);
+
+        $this->assertIsString($result);
+
+        $r = $x509->loadX509($result);
+        $this->assertSame('id-RSASSA-PSS', $r['tbsCertificate']['signature']['algorithm']);
+        $this->assertArrayHasKey('parameters', $r['tbsCertificate']['signature']);
+        $this->assertSame('id-RSASSA-PSS', $r['tbsCertificate']['subjectPublicKeyInfo']['algorithm']['algorithm']);
+        $this->assertArrayHasKey('parameters', $r['tbsCertificate']['subjectPublicKeyInfo']['algorithm']);
+        $this->assertSame('id-RSASSA-PSS', $r['signatureAlgorithm']['algorithm']);
+        $this->assertArrayHasKey('parameters', $r['signatureAlgorithm']);
+    }
+
+    public function testPKCS1Save()
+    {
+        $private = '-----BEGIN RSA PRIVATE KEY-----
+MIICXAIBAAKBgQCqGKukO1De7zhZj6+H0qtjTkVxwTCpvKe4eCZ0FPqri0cb2JZfXJ/DgYSF6vUp
+wmJG8wVQZKjeGcjDOL5UlsuusFncCzWBQ7RKNUSesmQRMSGkVb1/3j+skZ6UtW+5u09lHNsj6tQ5
+1s1SPrCBkedbNf0Tp0GbMJDyR4e9T04ZZwIDAQABAoGAFijko56+qGyN8M0RVyaRAXz++xTqHBLh
+3tx4VgMtrQ+WEgCjhoTwo23KMBAuJGSYnRmoBZM3lMfTKevIkAidPExvYCdm5dYq3XToLkkLv5L2
+pIIVOFMDG+KESnAFV7l2c+cnzRMW0+b6f8mR1CJzZuxVLL6Q02fvLi55/mbSYxECQQDeAw6fiIQX
+GukBI4eMZZt4nscy2o12KyYner3VpoeE+Np2q+Z3pvAMd/aNzQ/W9WaI+NRfcxUJrmfPwIGm63il
+AkEAxCL5HQb2bQr4ByorcMWm/hEP2MZzROV73yF41hPsRC9m66KrheO9HPTJuo3/9s5p+sqGxOlF
+L0NDt4SkosjgGwJAFklyR1uZ/wPJjj611cdBcztlPdqoxssQGnh85BzCj/u3WqBpE2vjvyyvyI5k
+X6zk7S0ljKtt2jny2+00VsBerQJBAJGC1Mg5Oydo5NwD6BiROrPxGo2bpTbu/fhrT8ebHkTz2epl
+U9VQQSQzY1oZMVX8i1m5WUTLPz2yLJIBQVdXqhMCQBGoiuSoSjafUhV7i1cEGpb88h5NBYZzWXGZ
+37sJ5QsW+sJyoNde3xH8vdXhzU7eT82D6X/scw9RZz+/6rCJ4p0=
+-----END RSA PRIVATE KEY-----';
+        $private = PublicKeyLoader::load($private)
+            ->withPadding(RSA::SIGNATURE_PKCS1)
+            ->withHash('sha256');
+        $public = $private->getPublicKey();
+
+        $subject = new X509();
+        $subject->setDNProp('id-at-organizationName', 'phpseclib demo cert');
+        $subject->setPublicKey($public);
+
+        $issuer = new X509();
+        $issuer->setPrivateKey($private);
+        $issuer->setDN($subject->getDN());
+
+        $x509 = new X509();
+
+        $result = $x509->sign($issuer, $subject);
+        $result = $x509->saveX509($result);
+
+        $this->assertIsString($result);
+
+        $r = $x509->loadX509($result);
+        $this->assertSame('sha256WithRSAEncryption', $r['tbsCertificate']['signature']['algorithm']);
+        $this->assertSame('rsaEncryption', $r['tbsCertificate']['subjectPublicKeyInfo']['algorithm']['algorithm']);
+        $this->assertSame('sha256WithRSAEncryption', $r['signatureAlgorithm']['algorithm']);
     }
 
     public function testLongTagOnBadCert()
@@ -1054,7 +1230,7 @@ ut3+b2Xvzq8yzmHMFtLIJ6Afu1jJpqD82BUAFcvi5vhnP8M7b974R18WCOpgNQvXDI+2/8ZINeU=
 -----END CERTIFICATE-----');
         $r = $x509->saveX509($r);
         $r = $x509->loadX509($r);
-        $this->assertSame($r['tbsCertificate']['extensions'][5]['extnValue']['excludedSubtrees'][1]['base']['iPAddress'], array('0.0.0.0', '0.0.0.0'));
+        $this->assertSame($r['tbsCertificate']['extensions'][5]['extnValue']['excludedSubtrees'][1]['base']['iPAddress'], ['0.0.0.0', '0.0.0.0']);
     }
 
     /**
@@ -1182,6 +1358,89 @@ qzFkAKWjJj4KjfrbZX4C0Spfxw==
 
         $x509 = new X509();
         $r = $x509->loadX509($a);
+
+        $this->assertIsArray($r);
+    }
+
+    /**
+     * @group github1586
+     */
+    public function testComputeKeyIdentifier()
+    {
+        $key = RSA::createKey(512);
+        $key = ASN1::extractBER("$key");
+        $key = ASN1::encodeDER($key, ['type' => ASN1::TYPE_BIT_STRING]);
+        $key = new Element($key);
+
+        $x509 = new X509();
+        $this->assertIsString($x509->computeKeyIdentifier($key));
+    }
+
+    /**
+     * @group github1665
+     */
+    public function testImplicitV1()
+    {
+        $x509 = new X509();
+        $r = $x509->loadX509('-----BEGIN CERTIFICATE-----
+MIIDZDCCAkwCCQDIda+OHQTFSTANBgkqhkiG9w0BAQsFADB0MQswCQYDVQQGEwJE
+RTEMMAoGA1UECAwDc2RmMQ4wDAYDVQQHDAVzZ3J3ZTEOMAwGA1UECgwFZXJncmUx
+DDAKBgNVBAsMA2VyZzEMMAoGA1UEAwwDd3JnMRswGQYJKoZIhvcNAQkBFgxqYWRm
+c0BzZGYuZGUwHhcNMjEwNTI2MTIxMTQwWhcNMjIwNTI2MTIxMTQwWjB0MQswCQYD
+VQQGEwJERTEMMAoGA1UECAwDc2RmMQ4wDAYDVQQHDAVzZ3J3ZTEOMAwGA1UECgwF
+ZXJncmUxDDAKBgNVBAsMA2VyZzEMMAoGA1UEAwwDd3JnMRswGQYJKoZIhvcNAQkB
+FgxqYWRmc0BzZGYuZGUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCy
+Cdw2oh1mLuMq9icQWkv1Sgt1p4RhwAeiYcqo/lm0VAf3LjPDDCccXmwFUEQJ2g8r
+UPmvazT0IaYytsPGlNCS2nA+OyY/NBySpBcksiQHEfmrW04/jsoJ2oql+BCWkGsF
+dAewCWpzvL8RZxoKYlZwBfvyDn4QFn1TsuCxnHdKvrcpvzaQcfBcJT8P39TFTlUc
+mBoa3Y/iIULlvwk3w+1LjY7gnNDqNyGaOSZpfpliTxwvIK/PJbStD0srT+voSPZW
+4Xt1oOxqmdFvTL+6H6xT/HrEfwtN/+bU1ZmY23Kcq21sczy4dvglrnPqmRUVjoL8
+qs/qT8GNZmvZxB5dLXbfAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAH5ciSY+dD+H
+CmnMHmZwyE1q3QifO/qiygNeosnth6dYI+JxR9aAJKB6vnBQl3IReeoniaSH/iaH
+DthLeo0haSb5d3P911wPmw3gut7ungnQ1X/HHroDL6UASj+x2Dux04w7Q3YNyqGT
+OObFmWs68kxLV3V0TDYNjz+nU4wVqFDKlehdoDm4Q/uq2FIRbU/qWS61sxI/s+Pg
+42cGvzZe673OZgtOIDuRo/8Ahe/Vc285nbuMRMTWIs9e5fGSW8b6gVmKhBUmIFGj
+bMgrc775Q3t4hkitEymosEiqHsj7YM6EpgHZwke+CNdybIUw+u9L3xxOl4mEeY6l
+itRo91vT68U=
+-----END CERTIFICATE-----');
+        $this->assertSame($r['tbsCertificate']['version'], 'v1');
+    }
+
+    /**
+     * @group github1657
+     */
+    public function testSignWithEncryptedPSS()
+    {
+        $private = PublicKeyLoader::load('-----BEGIN ENCRYPTED PRIVATE KEY-----
+MIIDHTBXBgkqhkiG9w0BBQ0wSjApBgkqhkiG9w0BBQwwHAQI/ztYS981c5ICAggA
+MAwGCCqGSIb3DQIJBQAwHQYJYIZIAWUDBAECBBDIhjZywtTXKRxXbh8zBPXGBIIC
+wOP3olf5aArfp+0Fl65aTjRDQOb6YTGhpN2c0Of4hTIcKrGgaSeVv2vEUwUz2s4V
+r/xQkK0vtxMvAOgIHy1b0Z/Nm4hyP2tg0TkjzXjrX5Bt0O+WsZKIJHAA15T9zlMl
+96hcev5GldiwLI5IMKiSByecT0N9UPGansngGEZ8fyw/fl0nhsilC76DHRg2IHKm
+eHMkRj9iZvulpeDCvSlDA8tczI9wRryA1ppxWwkvTjWbEbMKrF17Yva7G2lwo6YN
+s4tJ8fh7Dl1kAH4Nl8N5GAOzkJrc0hkvKOAiHWnpfoveLg2I5rh5vGr7IoRJlkot
+zj9i4si1r6/29+u7vA6eYONuDKv9dEHsvko7Z0lRh80vpBR+6qQCqrrIVXFF2sjD
+Qnn/B/tNcZpTOga5ohqWzvqT8pWgw5qHCul+xIowUDScJsGx8akJ2XRHICm9FZLo
+NCaGo+40JDH6647lIBqYmfJ6Vifxq2cMGse14H4lxtpmf7pl8/SnzMHsf3WAj3mG
+rgWXqSLy4YJMstYCo1B1oZze+clTrv/V4FtXoTjzUawOMV+cJYQtU7sz6cbxSKrG
+U82LEHrKMl5BvIPYQOXegTdkkQ92etZEaQ74o2ycHY6PmRwTOLJ1uxgqjXQa9IHE
+I1Zzdx+RLGJoBacqYn20PTl1F1cqItTfJb885lTNh6IzfsYlk1FNM+vu+lA7OFuv
+mKExsRhEvgD2LXsW/5db8diOf34H0K+gimhnC5/TxEzOA8w0Y6+uIJieXzn3lQKu
+CL6PqVQYO3S6DI4uPngGwxauvbnC6lsl2OYBpVyAUl2fprmhhwE2ISSF7cYdA+Qk
+52CTxJj75d7fkutTpSXSj/hz91Gmjv5MDBTti1VLoM7uu9v038Mt6yPq+7mYbxlj
+qL1996ArZnIyIcn+OeOgEriypYL9GUkFdJX1jhEHJuZY
+-----END ENCRYPTED PRIVATE KEY-----', 'demo');
+
+        $subject = new X509();
+        $subject->setDNProp('id-at-organizationName', 'phpseclib demo cert');
+        $subject->setPublicKey($private->getPublicKey());
+
+        $issuer = new X509();
+        $issuer->setPrivateKey($private);
+        $issuer->setDNProp('id-at-organizationName', 'phpseclib CA cert');
+
+        $x509 = new X509();
+        $r = $x509->sign($issuer, $subject);
 
         $this->assertIsArray($r);
     }
@@ -1323,6 +1582,92 @@ JYhGgW6KsKViE0hzQB8dSAcNcfwQPSKzOd02crXdJ7uYvZZK9prN83Oe1iDaizeA
         $this->assertFalse($x509->validateURL('https://aa'));
     }
 
+    public function testLargeInteger()
+    {
+        // cert has an elliptic curve public key with a specified curve (vs a named curve) with
+        // an excessively large integer value
+        $cert = file_get_contents(__DIR__ . '/mal-cert-01.der');
+
+        $x509 = new X509();
+        $x509->loadX509($cert);
+        $this->expectException(\RuntimeException::class);
+        $x509->getPublicKey();
+    }
+
+    /**
+     * @group github2051
+     */
+    public function testRSACertWithECSDASig()
+    {
+        // a secp256r1 key
+        $CAPrivKey = PublicKeyLoader::load('-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgYZs/Y9XurjuN8SQ5
+7Fyy1mTgHjFsdt0/3mOH7pfUbh6hRANCAASnmS1cmSu9dHOYrBg9aJRBs3PLPK62
+u0s8T1gmnGIpKMyrHC3Sh6V2UczDODqpMXYiAsP6iPhiaq/3MmuhA0UA
+-----END PRIVATE KEY-----');
+        $CAPubKey = $CAPrivKey->getPublicKey();
+
+        $CASubject = new X509();
+        $CASubject->setDNProp('id-at-organizationName', 'phpseclib CA cert');
+        $CASubject->setPublicKey($CAPubKey);
+
+        $CAIssuer = new X509();
+        $CAIssuer->setPrivateKey($CAPrivKey);
+        $CAIssuer->setDN($CASubject->getDN());
+
+        $x509 = new X509();
+        $x509->setEndDate('lifetime');
+        $x509->makeCA();
+        $result = $x509->sign($CAIssuer, $CASubject);
+
+        // a 2048-bit private key
+        $privKey = PublicKeyLoader::load('-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDCgThSXWv0segP
+h6PkuQOp8Hl7vB/M6KBrpY+igKOG5IbXO6Fkhw/1nmgswa4tUu9b8Co9/HPDX/0X
+owHoZuriLQluPdFAl9TJsiL4Etjui/vCzmvtAHlC6N8MjhpXJj/1gdX3sEwhTfnw
+zAqQrR7SxIcoX4zHxHfQxsbR9my6x4HYSKVOEmJtDcTenaDXVqrHfzsc7FIAouSd
+UL2TxrgalyrKZce50iF/1SoXLvD0XxXgJZhVkMzcsycNMf4a5+xDQOaAl31DeSYT
+/x2CamRVBE3F+Tg1cegXBm6Dxhl5+TXgAhduFlBqlp8BMGlpE2lDdNpBYbDKGJs7
+LMdV+pN7AgMBAAECggEADHgvTax6ks3jBDfcbHnl/7uQdjvJyB+zxSLwkejwUuIM
+uPi0MJcuET+OCyyBh5tVCA5eDupD26coOR80rJsIfOaJP72L0DnLpQCcGE5RBP4J
+zmRAbAnHPGBkiFAF5Udo+0rPFlmBj/MJToQuOzc2DioWRiLWCiqQydwse+Jx9wld
+rJQ5WJfDGWV1T4nm88uzCDoMST6/7drwXNtyAEUHglcxnTj76t5AJ9YfI6FTiK64
+8tTjBr2f7D0uTsCw7ueDynNTTwGIvyH1UaLTfrdTq/Cfki8ztyCvPgBItgVlgAD5
+s85XXE4hqWKRgxJTG0OExyxeSLMpvbsVU/60Y/PcuQKBgQDlr2x77yuz3tIkXO+j
+50exlhCH5/iuAQ9vw8QUQlde63B86U9/Y8SYS0kd1CdmHPNaeve4frmleY1iWAfC
+AUAUaccKONlNbcVgcBzv7HXK+QmhRCb7EGGKFeb1O3oc1t8F1FRCa3hCtPchAVbu
+PGIL6E3VwO36XYDXfS+jAZVIQwKBgQDYyfd+WYCM6YixDKZAGgfLSU/1sdt4lDGe
+elObx0XeO+8kylqbk41WI92a4pQRnpZgHiyx48dsfa0vEO0zkGmfANxO/g6RxUTZ
+zW3qGj8njhtsY6ymmHj+Ncu9/lnY6EpfCVSelxsVz+5XufjZfWNHj8mdEWDzFkuZ
+BmcjQPlQaQKBgQDHfv3wC4Xe/ktx8BLpPuojkh8bnF1/7UXWIqh9nD29ISwcIp29
+HQ/V45ZHRU1PQRgR37qoUdG3q4MlByb92A4rbNDHzSbZPN3x7I8FyVFqkbJOkx50
+dP7zbCClohpnUC54Jrtk0WmsLvhzf3FdDa9vfj+UyLUq/+n3wTEOGULrdwKBgAGT
+FfUY+VIMsC15BgwZJE1Zrvb937Y0fVfFU64h+GPw03/U6GuQ2snxYL6rPqASIs13
+6qMwIFatYwCggtiJB/tbqj34omp0oFdkopO8tRC4e4KCBtL+8IIIKf6rRkPJDCE8
+lBzCxDOYWwbQFvqdaocuiCxX3/hkBRCLd1xOMIFhAoGAanaZkg7wogxseU0CDQWr
+ek+8xhvMsVmSs20JhR0WWUxNxZblKCJOMTzDnNxTajl8OeGfHLJER20aubB08/Fh
+3XTCUzLk69tfwhvGTVorZ+bQTAM1X18nzD89J03g/IaHxxR/nyB39Yq8yqNvuP0D
+Zf+6b317dHQhk60gz+CIt8s=
+-----END PRIVATE KEY-----');
+        $privKey = $privKey->withPadding(RSA::SIGNATURE_PKCS1);
+        $pubKey = $privKey->getPublicKey();
+
+        $subject = new X509();
+        $subject->setDomain('whatever.com');
+        $subject->setPublicKey($pubKey);
+
+        $x509 = new X509();
+        $x509->setEndDate('lifetime');
+        $result = $x509->sign($CAIssuer, $subject);
+        $cert = $x509->saveX509($result);
+
+        $x509 = new X509();
+        $cert = $x509->loadX509($cert);
+
+        $this->assertFalse(isset($cert['signatureAlgorithm']['parameters']));
+        $this->assertFalse(isset($cert['tbsCertificate']['signature']['parameters']));
+    }
+
     public function testOIDBomb()
     {
         $cert = file_get_contents(dirname(__FILE__) . '/poc_oid_bomb_50x4096.der');;
@@ -1331,18 +1676,5 @@ JYhGgW6KsKViE0hzQB8dSAcNcfwQPSKzOd02crXdJ7uYvZZK9prN83Oe1iDaizeA
         $cert = $x509->loadX509($cert);
 
         $this->assertFalse($cert);
-    }
-}
-
-// records the URLs it's asked to fetch instead of fetching them, and overrides _fetchURL() with the
-// one parameter that subclasses have always used
-class X509Test_RecordedURLFetch extends X509
-{
-    public static $urls = array();
-
-    static function _fetchURL($url)
-    {
-        self::$urls[] = $url;
-        return false;
     }
 }

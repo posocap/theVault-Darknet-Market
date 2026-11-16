@@ -30,6 +30,7 @@ class SeedMakeCommand extends GeneratorCommand
     /**
      * Get the console command arguments.
      */
+    #[\Override]
     protected function getArguments(): array
     {
         return [
@@ -41,6 +42,7 @@ class SeedMakeCommand extends GeneratorCommand
     /**
      * Get the console command options.
      */
+    #[\Override]
     protected function getOptions(): array
     {
         return [
@@ -53,9 +55,30 @@ class SeedMakeCommand extends GeneratorCommand
         ];
     }
 
+    /**
+     * Also reject a name that resolves to a class named "Seeder": the generated
+     * class would clash with the Illuminate\Database\Seeder class it extends.
+     */
+    #[\Override]
+    protected function validateNameArgument(): ?string
+    {
+        if (($error = parent::validateNameArgument()) !== null) {
+            return $error;
+        }
+
+        $name = $this->argument('name');
+
+        if (class_basename($this->getSeederName()) === 'Seeder') {
+            return "The name [{$name}] resolves to the class [Seeder], which clashes with the Illuminate\\Database\\Seeder base class.";
+        }
+
+        return null;
+    }
+
+    #[\Override]
     protected function getTemplateContents(): mixed
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub('/seeder.stub', [
             'NAME' => $this->getSeederName(),
@@ -65,11 +88,12 @@ class SeedMakeCommand extends GeneratorCommand
         ]))->render();
     }
 
+    #[\Override]
     protected function getDestinationFilePath(): mixed
     {
         $this->clearCache();
 
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $seederPath = GenerateConfigReader::read('seeder');
 
@@ -85,7 +109,7 @@ class SeedMakeCommand extends GeneratorCommand
         $string .= $this->option('master') ? 'Database' : '';
         $suffix = 'Seeder';
 
-        if (strpos($string, $suffix) === false) {
+        if (! str_contains($string, $suffix)) {
             $string .= $suffix;
         }
 
@@ -95,9 +119,10 @@ class SeedMakeCommand extends GeneratorCommand
     /**
      * Get default namespace.
      */
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.seeder.namespace')
-            ?? ltrim(config('modules.paths.generator.seeder.path', 'Database/Seeders'), config('modules.paths.app_folder', ''));
+            ?? $this->strip_app_folder(config('modules.paths.generator.seeder.path', 'Database/Seeders'));
     }
 }

@@ -2,13 +2,13 @@
 
 namespace Nwidart\Modules;
 
-use Illuminate\Cache\CacheManager;
 use Illuminate\Container\Container;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Support\Traits\Macroable;
-use Illuminate\Translation\Translator;
+use Laravel\Lumen\Application;
 use Nwidart\Modules\Constants\ModuleEvent;
 use Nwidart\Modules\Contracts\ActivatorInterface;
 
@@ -17,9 +17,10 @@ abstract class Module
     use Macroable;
 
     /**
-     * The laravel|lumen application instance.
+     * The laravel|lumen application instance. The constructor accepts any Container for
+     * backwards compatibility, but the module calls application methods on it.
      *
-     * @var \Illuminate\Contracts\Foundation\Application|\Laravel\Lumen\Application
+     * @var (Container&\Illuminate\Contracts\Foundation\Application)|(Container&Application)
      */
     protected $app;
 
@@ -35,23 +36,15 @@ abstract class Module
 
     /**
      * Array of cached Json objects, keyed by filename
+     *
+     * @var array<string, Json>
      */
     protected array $moduleJson = [];
-
-    /**
-     * Cache Manager
-     */
-    private CacheManager $cache;
 
     /**
      * Filesystem
      */
     private Filesystem $files;
-
-    /**
-     * Translator
-     */
-    private Translator $translator;
 
     /**
      * ActivatorInterface
@@ -60,20 +53,22 @@ abstract class Module
 
     /**
      * The constructor.
+     *
+     * @param  (Container&\Illuminate\Contracts\Foundation\Application)|(Container&Application)  $app
      */
     public function __construct(Container $app, string $name, string $path)
     {
         $this->name = $name;
         $this->path = $path;
-        $this->cache = $app['cache'];
-        $this->files = $app['files'];
-        $this->translator = $app['translator'];
-        $this->activator = $app[ActivatorInterface::class];
+        $this->files = $app->make(Filesystem::class);
+        $this->activator = $app->make(ActivatorInterface::class);
         $this->app = $app;
     }
 
     /**
      * Returns an array of assets
+     *
+     * @return array<int, mixed> The src of each entrypoint in the Vite build manifest.
      */
     public static function getAssets(): array
     {
@@ -140,19 +135,19 @@ abstract class Module
     }
 
     /**
-     * Get description.
+     * Get description, or an empty string when module.json has none.
      */
     public function getDescription(): string
     {
-        return $this->get('description');
+        return (string) ($this->get('description') ?? '');
     }
 
     /**
-     * Get priority.
+     * Get priority, or '0' when module.json has none (the default ModuleManifest also sorts by).
      */
     public function getPriority(): string
     {
-        return $this->get('priority');
+        return (string) ($this->get('priority') ?? 0);
     }
 
     /**
@@ -185,6 +180,10 @@ abstract class Module
 
     /**
      * Bootstrap the application events.
+     *
+     * @deprecated The package no longer calls this method: enabled modules are loaded through
+     *             ModuleManifest, and each module's ModuleServiceProvider registers its translations.
+     *             Will be removed in v14.
      */
     public function boot(): void
     {
@@ -201,6 +200,10 @@ abstract class Module
 
     /**
      * Register module's translation.
+     *
+     * @deprecated Only called by the deprecated Module::boot(). Load translations in the module's
+     *             ModuleServiceProvider::registerTranslations(), or enable modules.auto-discover.translations.
+     *             Will be removed in v14.
      */
     protected function registerTranslation(): void
     {
@@ -222,13 +225,24 @@ abstract class Module
             $file = 'module.json';
         }
 
-        return Arr::get($this->moduleJson, $file, function () use ($file) {
-            return $this->moduleJson[$file] = new Json($this->getPath().'/'.$file, $this->files);
-        });
+        return Arr::get($this->moduleJson, $file, fn () => $this->moduleJson[$file] = new Json($this->getPath().'/'.$file, $this->files));
+    }
+
+    /**
+     * Cache an already decoded json file, so json() does not read it again.
+     */
+    public function setJson(Json $json, string $file = 'module.json'): static
+    {
+        $this->moduleJson[$file] = $json;
+
+        return $this;
     }
 
     /**
      * Get a specific data from json file by given the key.
+     *
+     * @param  mixed  $default
+     * @return mixed
      */
     public function get(string $key, $default = null)
     {
@@ -237,6 +251,9 @@ abstract class Module
 
     /**
      * Get a specific data from composer.json file by given the key.
+     *
+     * @param  mixed  $default
+     * @return mixed
      */
     public function getComposerAttr(string $key, $default = null)
     {
@@ -245,6 +262,9 @@ abstract class Module
 
     /**
      * Register the module.
+     *
+     * @deprecated The package no longer calls this method: module providers and files are loaded
+     *             by the package service provider through ModuleManifest. Will be removed in v14.
      */
     public function register(): void
     {
@@ -264,7 +284,7 @@ abstract class Module
      */
     public function fireEvent(string $event): void
     {
-        $this->app['events']->dispatch(sprintf('modules.%s.%s', $this->getLowerName(), $event), [$this]);
+        $this->app->make(Dispatcher::class)->dispatch(sprintf('modules.%s.%s', $this->getLowerName(), $event), [$this]);
     }
 
     /**
@@ -295,6 +315,7 @@ abstract class Module
     /**
      * Handle call __toString.
      */
+    #[\Override]
     public function __toString(): string
     {
         return $this->getStudlyName();
@@ -382,6 +403,9 @@ abstract class Module
 
     /**
      * Check can load files of module on boot method.
+     *
+     * @deprecated Only called by the deprecated Module::boot() and Module::register(). Module files are
+     *             loaded by ModuleManifest::registerFiles(). Will be removed in v14.
      */
     protected function isLoadFilesOnBoot(): bool
     {
@@ -395,6 +419,9 @@ abstract class Module
      */
     private function loadTranslationsFrom(string $path, string $namespace): void
     {
-        $this->translator->addNamespace($namespace, $path);
+        // Use afterResolving to ensure translations are registered when translator becomes available
+        $this->app->afterResolving('translator', function ($translator) use ($path, $namespace) {
+            $translator->addNamespace($namespace, $path);
+        });
     }
 }

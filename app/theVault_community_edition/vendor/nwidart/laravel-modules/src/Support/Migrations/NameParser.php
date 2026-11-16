@@ -10,12 +10,16 @@ class NameParser
     protected string $name;
 
     /**
-     * The array data.
+     * The array data: the migration name split on "_".
+     *
+     * @var array<int, string>
      */
     protected array $data = [];
 
     /**
      * The available schema actions.
+     *
+     * @var array<string, array<int, string>>
      */
     protected array $actions = [
         'create' => [
@@ -66,15 +70,57 @@ class NameParser
     /**
      * Get the table will be used.
      */
-    public function getTableName(): string
+    public function getTableName(): ?string
     {
         $matches = array_reverse($this->getMatches());
 
-        return array_shift($matches);
+        $table = array_shift($matches);
+
+        if ($table !== null) {
+            return $table;
+        }
+
+        foreach ($this->getFallbackPatterns() as $pattern) {
+            if (preg_match($pattern, $this->name, $matches)) {
+                return end($matches);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the patterns tried when the name does not match getPattern(), such as
+     * "alter_users_table", "update_users_table" or names without a "_table" suffix.
+     * Like Laravel's TableGuesser, the table is the part after "_to_" or "_from_".
+     *
+     * @return array<int, string>
+     */
+    protected function getFallbackPatterns(): array
+    {
+        $action = $this->getAction();
+
+        if (in_array($action, $this->actions['add'])) {
+            $preposition = 'to';
+        } elseif (in_array($action, [...$this->actions['delete'], 'alter'])) {
+            $preposition = 'from';
+        } elseif (in_array($action, [...$this->actions['create'], ...$this->actions['drop']])) {
+            return ["/^{$action}_(.+)$/"];
+        } else {
+            return [];
+        }
+
+        return [
+            "/^{$action}_.+_{$preposition}_(.+)$/",
+            "/^{$action}_(.+)_table$/",
+            "/^{$action}_(.+)$/",
+        ];
     }
 
     /**
      * Get matches data from regex.
+     *
+     * @return array<int, string>
      */
     public function getMatches(): array
     {
@@ -88,31 +134,19 @@ class NameParser
      */
     public function getPattern(): string
     {
-        switch ($action = $this->getAction()) {
-            case 'add':
-            case 'append':
-            case 'update':
-            case 'insert':
-                return "/{$action}_(.*)_to_(.*)_table/";
+        $action = $this->getAction();
 
-                break;
-
-            case 'delete':
-            case 'remove':
-            case 'alter':
-                return "/{$action}_(.*)_from_(.*)_table/";
-
-                break;
-
-            default:
-                return "/{$action}_(.*)_table/";
-
-                break;
-        }
+        return match ($action) {
+            'add', 'append', 'update', 'insert' => "/{$action}_(.*)_to_(.*)_table/",
+            'delete', 'remove', 'alter' => "/{$action}_(.*)_from_(.*)_table/",
+            default => "/{$action}_(.*)_table/",
+        };
     }
 
     /**
      * Fetch the migration name to an array data.
+     *
+     * @return array<int, string>
      */
     protected function fetchData(): array
     {
@@ -121,6 +155,8 @@ class NameParser
 
     /**
      * Get the array data.
+     *
+     * @return array<int, string>
      */
     public function getData(): array
     {
@@ -129,6 +165,8 @@ class NameParser
 
     /**
      * Determine whether the given type is same with the current schema action or type.
+     *
+     * @param  string  $type
      */
     public function is($type): bool
     {

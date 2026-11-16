@@ -33,17 +33,19 @@ class RequestMakeCommand extends GeneratorCommand
      */
     protected $description = 'Create a new form request class for the specified module.';
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.request.namespace')
-            ?? ltrim(config('modules.paths.generator.request.path', 'Http/Requests'), config('modules.paths.app_folder', ''));
+            ?? $this->strip_app_folder(config('modules.paths.generator.request.path', 'Http/Requests'));
     }
 
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -55,9 +57,10 @@ class RequestMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getTemplateContents()
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub('/request.stub', [
             'NAMESPACE' => $this->getClassNamespace($module),
@@ -68,9 +71,10 @@ class RequestMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $requestPath = GenerateConfigReader::read('request');
 

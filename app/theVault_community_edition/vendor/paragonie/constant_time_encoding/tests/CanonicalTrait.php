@@ -2,7 +2,8 @@
 declare(strict_types=1);
 namespace ParagonIE\ConstantTime\Tests;
 
-use ParagonIE\ConstantTime\Binary;
+use function strlen;
+use function substr;
 
 trait CanonicalTrait
 {
@@ -22,8 +23,8 @@ trait CanonicalTrait
 
     protected function increment(string $str): string
     {
-        $i = Binary::safeStrlen($str) - 1;
+        $i = strlen($str) - 1;
         $c = $this->getNextChar($str[$i]);
-        return Binary::safeSubstr($str, 0, $i) . $c;
+        return substr($str, 0, $i) . $c;
     }
 }

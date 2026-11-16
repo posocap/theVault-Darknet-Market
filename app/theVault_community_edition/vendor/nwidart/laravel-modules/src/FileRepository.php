@@ -3,13 +3,13 @@
 namespace Nwidart\Modules;
 
 use Countable;
-use Illuminate\Cache\CacheManager;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
 use Illuminate\Support\Traits\Macroable;
+use Laravel\Lumen\Application;
 use Nwidart\Modules\Constants\ModuleEvent;
 use Nwidart\Modules\Contracts\RepositoryInterface;
 use Nwidart\Modules\Exceptions\InvalidAssetPath;
@@ -23,9 +23,10 @@ abstract class FileRepository implements Countable, RepositoryInterface
     use Macroable;
 
     /**
-     * Application instance.
+     * Application instance (Laravel or Lumen). The constructor accepts any Container for
+     * backwards compatibility, but the repository calls application methods on it.
      *
-     * @var \Illuminate\Contracts\Foundation\Application|\Laravel\Lumen\Application
+     * @var (Container&\Illuminate\Contracts\Foundation\Application)|(Container&Application)
      */
     protected $app;
 
@@ -36,6 +37,8 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * The scanned paths.
+     *
+     * @var array<int, string>
      */
     protected array $paths = [];
 
@@ -60,23 +63,38 @@ abstract class FileRepository implements Countable, RepositoryInterface
     private Filesystem $files;
 
     /**
-     * Cache Manager
+     * The scan paths the module.json files below were found in.
+     *
+     * @var list<string>
      */
-    private CacheManager $cache;
+    private array $scannedPaths = [];
 
-    private static $modules = [];
+    /**
+     * The module.json files found by the last scan, in glob order: decoded once per repository instance.
+     *
+     * @var list<array{path: string, json: Json}>|null
+     */
+    private ?array $moduleJsonFiles = null;
+
+    /**
+     * The modules built from the module.json files, keyed by lower case name.
+     *
+     * @var array<string, Module>|null
+     */
+    private ?array $modules = null;
 
     /**
      * The constructor.
+     *
+     * @param  (Container&\Illuminate\Contracts\Foundation\Application)|(Container&Application)  $app
      */
     public function __construct(Container $app, ?string $path = null)
     {
         $this->app = $app;
         $this->path = $path;
-        $this->url = $app['url'];
-        $this->config = $app['config'];
-        $this->files = $app['files'];
-        $this->cache = $app['cache'];
+        $this->url = $app->make(UrlGenerator::class);
+        $this->config = $app->make(ConfigRepository::class);
+        $this->files = $app->make(Filesystem::class);
     }
 
     /**
@@ -86,11 +104,15 @@ abstract class FileRepository implements Countable, RepositoryInterface
     {
         $this->paths[] = $path;
 
+        $this->resetModules();
+
         return $this;
     }
 
     /**
      * Get all additional paths.
+     *
+     * @return array<int, string>
      */
     public function getPaths(): array
     {
@@ -99,7 +121,10 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * Get scanned modules paths.
+     *
+     * @return array<int, string>
      */
+    #[\Override]
     public function getScanPaths(): array
     {
         $paths = $this->paths;
@@ -110,50 +135,92 @@ abstract class FileRepository implements Countable, RepositoryInterface
             $paths = array_merge($paths, $this->config('scan.paths'));
         }
 
-        $paths = array_map(function ($path) {
-            return Str::endsWith($path, '/*') ? $path : Str::finish($path, '/*');
-        }, $paths);
+        $paths = array_map(fn ($path) => Str::endsWith($path, '/*') ? $path : Str::finish($path, '/*'), $paths);
 
         return $paths;
     }
 
     /**
      * Creates a new Module instance
+     *
+     * @param  (Container&\Illuminate\Contracts\Foundation\Application)|(Container&Application)  $app
      */
     abstract protected function createModule(Container $app, string $name, string $path): Module;
 
     /**
      * Get & scan all modules.
+     *
+     * The result is kept for the lifetime of this repository instance (one per application),
+     * so finding a module does not read every module.json again. Call resetModules() after
+     * adding or removing module folders without going through the repository.
+     *
+     * @return array<string, Module>
      */
+    #[\Override]
     public function scan(): array
     {
-        if (! empty(self::$modules) && ! $this->app->runningUnitTests()) {
-            return self::$modules;
+        if ($this->modules !== null) {
+            return $this->modules;
         }
-
-        $paths = $this->getScanPaths();
 
         $modules = [];
 
-        foreach ($paths as $key => $path) {
+        foreach ($this->getModuleJsonFiles() as $file) {
+            $json = $file['json'];
+            $name = $json->get('name');
+
+            $modules[strtolower($name)] = $this->createModule($this->app, $name, dirname($file['path']))
+                ->setJson($json);
+        }
+
+        return $this->modules = $modules;
+    }
+
+    /**
+     * Get every module.json file in the scan paths, in glob order, each decoded once.
+     *
+     * ModuleManifest builds the enabled module list from these files too, so a request
+     * finds and reads each module.json only once. The files are scanned again after
+     * resetModules(), or when the scan paths changed since the last scan (config set
+     * after the package registered, for example).
+     *
+     * @return list<array{path: string, json: Json}>
+     */
+    public function getModuleJsonFiles(): array
+    {
+        $paths = $this->getScanPaths();
+
+        if ($this->moduleJsonFiles !== null && $paths === $this->scannedPaths) {
+            return $this->moduleJsonFiles;
+        }
+
+        $this->modules = null;
+
+        $files = [];
+        $jsons = [];
+
+        foreach ($paths as $path) {
             $manifests = (array) $this->getFiles()->glob("{$path}/module.json");
 
             foreach ($manifests as $manifest) {
-                $json = Json::make($manifest);
-                $name = $json->get('name');
+                // Overlapping scan paths can list the same file twice: read it once.
+                $jsons[$manifest] ??= Json::make($manifest, $this->getFiles());
 
-                $modules[strtolower($name)] = $this->createModule($this->app, $name, dirname($manifest));
+                $files[] = ['path' => $manifest, 'json' => $jsons[$manifest]];
             }
         }
 
-        self::$modules = $modules;
+        $this->scannedPaths = $paths;
 
-        return self::$modules;
+        return $this->moduleJsonFiles = $files;
     }
 
     /**
      * Get all modules.
+     *
+     * @return array<string, Module>
      */
+    #[\Override]
     public function all(): array
     {
         return $this->scan();
@@ -161,7 +228,10 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * Get all modules as collection instance.
+     *
+     * @return Collection<string, Module>
      */
+    #[\Override]
     public function toCollection(): Collection
     {
         return new Collection($this->scan());
@@ -169,7 +239,11 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * Get modules by status.
+     *
+     * @param  bool|int  $status
+     * @return array<string, Module>
      */
+    #[\Override]
     public function getByStatus($status): array
     {
         $modules = [];
@@ -186,15 +260,20 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * Determine whether the given module exist.
+     *
+     * @param  string  $name
      */
     public function has($name): bool
     {
-        return array_key_exists(strtolower($name), $this->all());
+        return $this->find((string) $name) !== null;
     }
 
     /**
      * Get list of enabled modules.
+     *
+     * @return array<string, Module>
      */
+    #[\Override]
     public function allEnabled(): array
     {
         return $this->getByStatus(true);
@@ -202,7 +281,10 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * Get list of disabled modules.
+     *
+     * @return array<string, Module>
      */
+    #[\Override]
     public function allDisabled(): array
     {
         return $this->getByStatus(false);
@@ -211,6 +293,7 @@ abstract class FileRepository implements Countable, RepositoryInterface
     /**
      * Get count from all modules.
      */
+    #[\Override]
     public function count(): int
     {
         return count($this->all());
@@ -218,7 +301,10 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * Get all ordered modules.
+     *
+     * @return array<string, Module>
      */
+    #[\Override]
     public function getOrdered(string $direction = 'asc'): array
     {
         $modules = $this->allEnabled();
@@ -241,6 +327,7 @@ abstract class FileRepository implements Countable, RepositoryInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function getPath(): string
     {
         return $this->path ?: $this->config('paths.modules', base_path('Modules'));
@@ -248,7 +335,11 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * {@inheritDoc}
+     *
+     * @deprecated The package no longer calls this method: enabled modules are registered by the
+     *             package service provider through ModuleManifest. Will be removed in v14.
      */
+    #[\Override]
     public function register(): void
     {
         foreach ($this->getOrdered() as $module) {
@@ -258,7 +349,12 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * {@inheritDoc}
+     *
+     * @deprecated The package no longer calls this method: enabled modules are loaded through
+     *             ModuleManifest, and each module boots through its own service providers.
+     *             Will be removed in v14.
      */
+    #[\Override]
     public function boot(): void
     {
         foreach ($this->getOrdered() as $module) {
@@ -269,9 +365,32 @@ abstract class FileRepository implements Countable, RepositoryInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function find(string $name): ?Module
     {
-        return $this->all()[strtolower($name)] ?? null;
+        $module = $this->findScanned($name);
+
+        // The scan is kept per instance. On a miss, scan again if the scan paths changed
+        // since (config set after the scan), so a lookup never pays for the path check.
+        if ($module === null && $this->modules !== null && $this->scannedPaths !== $this->getScanPaths()) {
+            $this->resetModules();
+
+            $module = $this->findScanned($name);
+        }
+
+        return $module;
+    }
+
+    /**
+     * Find a module in the scanned modules.
+     */
+    private function findScanned(string $name): ?Module
+    {
+        $modules = $this->all();
+
+        // An exact (case-insensitive) match wins. Otherwise try the studly name module:make
+        // gives a module, so kebab or snake names (blog-post, blog_post) find BlogPost.
+        return $modules[strtolower($name)] ?? $modules[strtolower(Str::studly($name))] ?? null;
     }
 
     /**
@@ -279,6 +398,7 @@ abstract class FileRepository implements Countable, RepositoryInterface
      *
      * @throws ModuleNotFoundException
      */
+    #[\Override]
     public function findOrFail(string $name): Module
     {
         $module = $this->find($name);
@@ -292,6 +412,9 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * Get all modules as laravel collection instance.
+     *
+     * @param  bool|int  $status
+     * @return Collection<string, Module>
      */
     public function collections($status = 1): Collection
     {
@@ -300,7 +423,10 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * Get module path for a specific module.
+     *
+     * @param  string  $module
      */
+    #[\Override]
     public function getModulePath($module): string
     {
         try {
@@ -313,6 +439,7 @@ abstract class FileRepository implements Countable, RepositoryInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function assetPath(string $module): string
     {
         return $this->config('paths.assets').'/'.$module;
@@ -320,7 +447,11 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * {@inheritDoc}
+     *
+     * @param  mixed  $default
+     * @return mixed
      */
+    #[\Override]
     public function config(string $key, $default = null)
     {
         return $this->config->get('modules.'.$key, $default);
@@ -347,6 +478,9 @@ abstract class FileRepository implements Countable, RepositoryInterface
     /**
      * Set module used for cli session.
      *
+     * @param  string  $name
+     * @return void
+     *
      * @throws ModuleNotFoundException
      */
     public function setUsed($name)
@@ -360,6 +494,8 @@ abstract class FileRepository implements Countable, RepositoryInterface
 
     /**
      * Forget the module used for cli session.
+     *
+     * @return void
      */
     public function forgetUsed()
     {
@@ -371,7 +507,7 @@ abstract class FileRepository implements Countable, RepositoryInterface
     /**
      * Get module used for cli session.
      *
-     * @throws \Nwidart\Modules\Exceptions\ModuleNotFoundException
+     * @throws ModuleNotFoundException
      */
     public function getUsedNow(): string
     {
@@ -381,6 +517,7 @@ abstract class FileRepository implements Countable, RepositoryInterface
     /**
      * Get laravel filesystem instance.
      */
+    #[\Override]
     public function getFiles(): Filesystem
     {
         return $this->files;
@@ -416,6 +553,7 @@ abstract class FileRepository implements Countable, RepositoryInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function isEnabled(string $name): bool
     {
         return $this->findOrFail($name)->isEnabled();
@@ -424,6 +562,7 @@ abstract class FileRepository implements Countable, RepositoryInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function isDisabled(string $name): bool
     {
         return ! $this->isEnabled($name);
@@ -432,7 +571,9 @@ abstract class FileRepository implements Countable, RepositoryInterface
     /**
      * Enabling a specific module.
      *
-     * @throws \Nwidart\Modules\Exceptions\ModuleNotFoundException
+     * @return void
+     *
+     * @throws ModuleNotFoundException
      */
     public function enable(string $name)
     {
@@ -442,7 +583,9 @@ abstract class FileRepository implements Countable, RepositoryInterface
     /**
      * Disabling a specific module.
      *
-     * @throws \Nwidart\Modules\Exceptions\ModuleNotFoundException
+     * @return void
+     *
+     * @throws ModuleNotFoundException
      */
     public function disable(string $name)
     {
@@ -452,27 +595,38 @@ abstract class FileRepository implements Countable, RepositoryInterface
     /**
      * {@inheritDoc}
      */
+    #[\Override]
     public function delete(string $name): bool
     {
-        return $this->findOrFail($name)->delete();
+        $deleted = $this->findOrFail($name)->delete();
+
+        $this->resetModules();
+
+        return $deleted;
     }
 
     /**
      * Update dependencies for the specified module.
+     *
+     * @return void
      */
     public function update(string $module)
     {
-        with(new Updater($this))->update($module);
+        (new Updater($this))->update($module);
     }
 
     /**
      * Install the specified module.
+     *
+     * An empty version installs the Installer default: `dev-master` via composer,
+     * `master` via git. The parameter stays a non-nullable string, so subclasses
+     * that override this method with the previous signature remain compatible.
      */
-    public function install(string $name, string $version = 'dev-master', string $type = 'composer', bool $subtree = false): Process
+    public function install(string $name, string $version = '', string $type = 'composer', bool $subtree = false): Process
     {
-        $installer = new Installer($name, $version, $type, $subtree);
+        $installer = new Installer($name, $version === '' ? null : $version, $type, $subtree);
 
-        return $installer->run();
+        return $installer->setRepository($this)->run();
     }
 
     /**
@@ -501,9 +655,14 @@ abstract class FileRepository implements Countable, RepositoryInterface
         return $this;
     }
 
+    /**
+     * Forget the scanned modules, so the next call scans the module.json files again.
+     */
     public function resetModules(): static
     {
-        self::$modules = [];
+        $this->scannedPaths = [];
+        $this->moduleJsonFiles = null;
+        $this->modules = null;
 
         return $this;
     }

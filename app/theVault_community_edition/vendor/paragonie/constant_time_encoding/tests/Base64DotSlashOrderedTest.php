@@ -2,25 +2,23 @@
 declare(strict_types=1);
 namespace ParagonIE\ConstantTime\Tests;
 
-use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ParagonIE\ConstantTime\Base64DotSlashOrdered;
 use RangeException;
+use function bin2hex;
+use function random_bytes;
+use function rtrim;
 
 class Base64DotSlashOrderedTest extends TestCase
 {
     use CanonicalTrait;
 
-    /**
-     * @covers Base64DotSlashOrdered::encode()
-     * @covers Base64DotSlashOrdered::decode()
-     */
     public function testRandom()
     {
         for ($i = 1; $i < 32; ++$i) {
             for ($j = 0; $j < 50; ++$j) {
-                $random = \random_bytes($i);
+                $random = random_bytes($i);
 
                 $enc = Base64DotSlashOrdered::encode($random);
                 $this->assertSame(
@@ -28,7 +26,7 @@ class Base64DotSlashOrderedTest extends TestCase
                     Base64DotSlashOrdered::decode($enc)
                 );
 
-                $unpadded = \rtrim($enc, '=');
+                $unpadded = rtrim($enc, '=');
                 $this->assertSame(
                     $random,
                     Base64DotSlashOrdered::decode($unpadded)
@@ -41,14 +39,21 @@ class Base64DotSlashOrderedTest extends TestCase
         }
     }
 
-    public function testDecodeNoPadding()
+    public function testUnpadded()
     {
-        Base64DotSlashOrdered::decodeNoPadding('..');
-        $this->expectException(InvalidArgumentException::class);
-        Base64DotSlashOrdered::decodeNoPadding('..==');
+        for ($i = 1; $i < 32; ++$i) {
+            $random = random_bytes($i);
+            $encoded = Base64DotSlashOrdered::encodeUnpadded($random);
+            $decoded = Base64DotSlashOrdered::decodeNoPadding($encoded);
+            $this->assertSame(
+                bin2hex($random),
+                bin2hex($decoded)
+            );
+        }
     }
 
     /**
+     * We need this for PHP before attributes
      * @dataProvider canonicalDataProvider
      */
     #[DataProvider("canonicalDataProvider")]
@@ -74,5 +79,24 @@ class Base64DotSlashOrderedTest extends TestCase
             'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./',
             'BCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./A'
         );
+    }
+
+    public static function invalidCharactersProvider(): array
+    {
+        return [
+            ['ab-d'],
+            ['ab d'],
+            ['ab[d'],
+        ];
+    }
+
+    /**
+     * @dataProvider invalidCharactersProvider
+     */
+    #[DataProvider("invalidCharactersProvider")]
+    public function testInvalidCharacters(string $encoded)
+    {
+        $this->expectException(RangeException::class);
+        Base64DotSlashOrdered::decode($encoded);
     }
 }

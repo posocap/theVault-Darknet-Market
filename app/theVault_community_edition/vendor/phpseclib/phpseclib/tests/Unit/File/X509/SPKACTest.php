@@ -1,14 +1,18 @@
 <?php
+
 /**
  * @author    Jim Wigginton <terrafrost@php.net>
  * @copyright 2014 Jim Wigginton
  * @license   http://www.opensource.org/licenses/mit-license.html  MIT License
  */
 
-use phpseclib\File\X509;
-use phpseclib\Crypt\RSA;
+namespace phpseclib3\Tests\Unit\File\X509;
 
-class Unit_File_X509_SPKACTest extends PhpseclibTestCase
+use phpseclib3\Crypt\RSA;
+use phpseclib3\File\X509;
+use phpseclib3\Tests\PhpseclibTestCase;
+
+class SPKACTest extends PhpseclibTestCase
 {
     public function testLoadSPKAC()
     {
@@ -46,12 +50,12 @@ class Unit_File_X509_SPKACTest extends PhpseclibTestCase
 
     public function testSaveSPKAC()
     {
-        $privKey = new RSA();
-        extract($privKey->createKey());
-        $privKey->loadKey($privatekey);
+        $privatekey = RSA::createKey(512)
+            ->withPadding(RSA::SIGNATURE_PKCS1)
+            ->withHash('sha1');
 
         $x509 = new X509();
-        $x509->setPrivateKey($privKey);
+        $x509->setPrivateKey($privatekey);
         $x509->setChallenge('...');
 
         $spkac = $x509->signSPKAC();
@@ -60,7 +64,7 @@ class Unit_File_X509_SPKACTest extends PhpseclibTestCase
         $this->assertIsString($x509->saveSPKAC($spkac));
 
         $x509 = new X509();
-        $x509->setPrivateKey($privKey);
+        $x509->setPrivateKey($privatekey);
 
         $spkac = $x509->signSPKAC();
         $this->assertIsArray($spkac);

@@ -28,9 +28,10 @@ class EventMakeCommand extends GeneratorCommand
      */
     protected $description = 'Create a new event class for the specified module';
 
+    #[\Override]
     public function getTemplateContents()
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub('/event.stub', [
             'NAMESPACE' => $this->getClassNamespace($module),
@@ -38,9 +39,10 @@ class EventMakeCommand extends GeneratorCommand
         ]))->render();
     }
 
+    #[\Override]
     public function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $eventPath = GenerateConfigReader::read('event');
 
@@ -55,17 +57,19 @@ class EventMakeCommand extends GeneratorCommand
         return Str::studly($this->argument('name'));
     }
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.event.namespace')
-            ?? ltrim(config('modules.paths.generator.event.path', 'Events'), config('modules.paths.app_folder', ''));
+            ?? $this->strip_app_folder(config('modules.paths.generator.event.path', 'Events'));
     }
 
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [

@@ -1,6 +1,14 @@
 CHANGELOG
 ---------
 
+### v4.5.0, 2026.03.05
+
+- Fixed nested re-serialization [#163](https://github.com/opis/closure/issues/163)
+
+### v4.4.0, 2025.11.20
+
+- Add PHP 8.5 support [#162](https://github.com/opis/closure/pull/162)
+
 ### v4.3.1, 2025.01.10
 
 - Fixed reference bug [#154](https://github.com/opis/closure/issues/154)

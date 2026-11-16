@@ -34,17 +34,19 @@ class CommandMakeCommand extends GeneratorCommand
      */
     protected $description = 'Generate new Artisan command for the specified module.';
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.command.namespace')
-            ?? ltrim(config('modules.paths.generator.command.path', 'Console'), config('modules.paths.app_folder', ''));
+            ?? $this->strip_app_folder(config('modules.paths.generator.command.path', 'Console'));
     }
 
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -56,8 +58,9 @@ class CommandMakeCommand extends GeneratorCommand
     /**
      * Get the console command options.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getOptions()
     {
         return [
@@ -68,12 +71,14 @@ class CommandMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getTemplateContents()
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub('/command.stub', [
-            'COMMAND_NAME' => $this->getCommandName(),
+            // The stub puts the signature in a single-quoted PHP string.
+            'COMMAND_NAME' => addcslashes($this->getCommandName(), '\\\''),
             'NAMESPACE' => $this->getClassNamespace($module),
             'CLASS' => $this->getClass(),
         ]))->render();
@@ -90,9 +95,10 @@ class CommandMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $commandPath = GenerateConfigReader::read('command');
 

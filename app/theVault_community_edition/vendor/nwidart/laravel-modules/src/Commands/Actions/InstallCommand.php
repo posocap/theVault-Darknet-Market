@@ -3,13 +3,17 @@
 namespace Nwidart\Modules\Commands\Actions;
 
 use Illuminate\Console\Command;
+use InvalidArgumentException;
 use Nwidart\Modules\Json;
 use Nwidart\Modules\Process\Installer;
+use Nwidart\Modules\Traits\InteractsWithModuleRepository;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 
 class InstallCommand extends Command
 {
+    use InteractsWithModuleRepository;
+
     /**
      * The console command name.
      *
@@ -41,14 +45,14 @@ class InstallCommand extends Command
             return $this->installFromFile();
         }
 
-        $this->install(
+        $installed = $this->install(
             $this->argument('name'),
             $this->argument('version'),
             $this->option('type'),
             $this->option('tree')
         );
 
-        return 0;
+        return $installed ? self::SUCCESS : self::FAILURE;
     }
 
     /**
@@ -64,30 +68,37 @@ class InstallCommand extends Command
 
         $modules = Json::make($path);
 
+        // Each entry of the module.json "require" list holds the name, version and type of a module.
+        /** @var array<int, array<string, mixed>> $dependencies */
         $dependencies = $modules->get('require', []);
+
+        $failed = false;
 
         foreach ($dependencies as $module) {
             $module = collect($module);
 
-            $this->install(
+            $installed = $this->install(
                 $module->get('name'),
                 $module->get('version'),
                 $module->get('type')
             );
+
+            $failed = $failed || ! $installed;
         }
 
-        return 0;
+        return $failed ? self::FAILURE : self::SUCCESS;
     }
 
     /**
      * Install the specified module.
      *
      * @param  string  $name
-     * @param  string  $version
-     * @param  string  $type
+     * @param  string|null  $version  Null installs the Installer default.
+     * @param  string|null  $type
      * @param  bool  $tree
+     * @return bool Whether the installation succeeded.
      */
-    protected function install($name, $version = 'dev-master', $type = 'composer', $tree = false)
+    protected function install($name, $version = null, $type = null, $tree = false): bool
     {
         $installer = new Installer(
             $name,
@@ -96,7 +107,7 @@ class InstallCommand extends Command
             $tree ?: $this->option('tree')
         );
 
-        $installer->setRepository($this->laravel['modules']);
+        $installer->setRepository($this->moduleRepository());
 
         $installer->setConsole($this);
 
@@ -108,20 +119,57 @@ class InstallCommand extends Command
             $installer->setPath($path);
         }
 
-        $installer->run();
+        try {
+            $process = $installer->run();
+        } catch (InvalidArgumentException $e) {
+            $this->error("Failed to install module [{$name}]: {$e->getMessage()}");
 
-        if (! $this->option('no-update')) {
-            $this->call('module:update', [
-                'module' => $installer->getModuleName(),
-            ]);
+            return false;
         }
+
+        if (! $process->isSuccessful()) {
+            $this->error("Failed to install module [{$name}] (exit code {$process->getExitCode()}).");
+
+            return false;
+        }
+
+        if ($this->option('no-update')) {
+            return true;
+        }
+
+        $module = $installer->getInstalledModuleName();
+        $repository = $this->moduleRepository();
+
+        // The repository caches its scan outside of tests: rescan to see the new module.
+        if (method_exists($repository, 'resetModules')) {
+            $repository->resetModules();
+        }
+
+        if ($repository->find($module) === null) {
+            $this->error("Module [{$module}] was installed, but the modules repository cannot find it, so module:update was skipped. Make sure its folder is in a scanned modules path, then run: php artisan module:update {$module}");
+
+            return false;
+        }
+
+        $code = $this->call('module:update', [
+            'module' => $module,
+        ]);
+
+        if ($code !== self::SUCCESS) {
+            $this->error("Module [{$module}] was installed, but module:update failed (exit code {$code}).");
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -133,8 +181,9 @@ class InstallCommand extends Command
     /**
      * Get the console command options.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getOptions()
     {
         return [

@@ -4,10 +4,13 @@ namespace Nwidart\Modules\Commands\Actions;
 
 use Illuminate\Console\Command;
 use Nwidart\Modules\Module;
+use Nwidart\Modules\Traits\InteractsWithModuleRepository;
 use Symfony\Component\Console\Input\InputOption;
 
 class ListCommand extends Command
 {
+    use InteractsWithModuleRepository;
+
     /**
      * The console command name.
      *
@@ -39,7 +42,7 @@ class ListCommand extends Command
     /**
      * Get table rows.
      *
-     * @return array
+     * @return array<int, array{0: string, 1: string, 2: string, 3: string}> Name, status, priority and path of each module.
      */
     public function getRows()
     {
@@ -50,7 +53,7 @@ class ListCommand extends Command
             $rows[] = [
                 $module->getName(),
                 $module->isEnabled() ? '<fg=green>Enabled</>' : '<fg=red>Disabled</>',
-                $module->get('priority'),
+                $module->getPriority(),
                 $module->getPath(),
             ];
         }
@@ -58,36 +61,27 @@ class ListCommand extends Command
         return $rows;
     }
 
+    /**
+     * Get the modules selected by the --only option.
+     *
+     * @return array<string, Module>
+     */
     public function getModules()
     {
-        switch ($this->option('only')) {
-            case 'enabled':
-                return $this->laravel['modules']->getByStatus(1);
-
-                break;
-
-            case 'disabled':
-                return $this->laravel['modules']->getByStatus(0);
-
-                break;
-
-            case 'priority':
-                return $this->laravel['modules']->getPriority($this->option('direction'));
-
-                break;
-
-            default:
-                return $this->laravel['modules']->all();
-
-                break;
-        }
+        return match ($this->option('only')) {
+            'enabled' => $this->moduleRepository()->getByStatus(1),
+            'disabled' => $this->moduleRepository()->getByStatus(0),
+            'priority' => $this->moduleRepository()->getOrdered($this->option('direction')),
+            default => $this->moduleRepository()->all(),
+        };
     }
 
     /**
      * Get the console command options.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getOptions()
     {
         return [

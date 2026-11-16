@@ -2,7 +2,7 @@
 
 namespace Nwidart\Modules\Commands\Publish;
 
-use Illuminate\Support\Str;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Nwidart\Modules\Commands\BaseCommand;
 use Symfony\Component\Console\Input\InputOption;
 
@@ -22,15 +22,22 @@ class PublishConfigurationCommand extends BaseCommand
      */
     protected $description = "Publish a module's config files to the application";
 
+    /**
+     * @param  string  $name
+     */
+    #[\Override]
     public function executeAction($name): void
     {
-        $this->call('vendor:publish', [
+        if ($this->call('vendor:publish', [
             '--provider' => $this->getServiceProviderForModule($name),
             '--force' => $this->option('force'),
             '--tag' => ['config'],
-        ]);
+        ]) !== self::SUCCESS) {
+            $this->markAsFailed();
+        }
     }
 
+    #[\Override]
     public function getInfo(): ?string
     {
         return 'Publishing module config files ...';
@@ -38,15 +45,19 @@ class PublishConfigurationCommand extends BaseCommand
 
     private function getServiceProviderForModule(string $module): string
     {
-        $namespace = $this->laravel['config']->get('modules.namespace');
-        $studlyName = Str::studly($module);
-        $provider = $this->laravel['config']->get('modules.paths.generator.provider.path');
-        $provider = str_replace($this->laravel['config']->get('modules.paths.app_folder'), '', $provider);
+        $moduleModel = $this->getModuleModel($module);
+        $config = $this->laravel->make(ConfigRepository::class);
+
+        $namespace = $config->get('modules.namespace');
+        $moduleName = $moduleModel->getName();
+        $provider = $config->get('modules.paths.generator.provider.path');
+        $provider = str_replace($config->get('modules.paths.app_folder'), '', $provider);
         $provider = str_replace('/', '\\', $provider);
 
-        return "$namespace\\$studlyName\\$provider\\{$studlyName}ServiceProvider";
+        return "$namespace\\$moduleName\\$provider\\{$moduleName}ServiceProvider";
     }
 
+    #[\Override]
     protected function getOptions(): array
     {
         return [

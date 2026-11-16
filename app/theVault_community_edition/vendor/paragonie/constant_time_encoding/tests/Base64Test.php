@@ -2,25 +2,30 @@
 declare(strict_types=1);
 namespace ParagonIE\ConstantTime\Tests;
 
+use Exception;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ParagonIE\ConstantTime\Base64;
 use RangeException;
+use function base64_decode;
+use function base64_encode;
+use function bin2hex;
+use function random_bytes;
+use function rtrim;
 
 class Base64Test extends TestCase
 {
     use CanonicalTrait;
 
     /**
-     * @covers Base64::encode()
-     * @covers Base64::decode()
+     * @throws Exception
      */
-    public function testRandom()
+    public function testRandom(): void
     {
         for ($i = 1; $i < 32; ++$i) {
             for ($j = 0; $j < 50; ++$j) {
-                $random = \random_bytes($i);
+                $random = random_bytes($i);
 
                 $enc = Base64::encode($random);
                 $this->assertSame(
@@ -28,18 +33,18 @@ class Base64Test extends TestCase
                     Base64::decode($enc)
                 );
                 $this->assertSame(
-                    \base64_encode($random),
+                    base64_encode($random),
                     $enc
                 );
 
-                $unpadded = \rtrim($enc, '=');
+                $unpadded = rtrim($enc, '=');
                 $this->assertSame(
                     $random,
                     Base64::decode($unpadded)
                 );
                 $this->assertSame(
                     $random,
-                    Base64::decode($unpadded)
+                    Base64::decode($unpadded, true)
                 );
             }
         }
@@ -77,16 +82,15 @@ class Base64Test extends TestCase
         try {
             Base64::decode($str, true);
             $this->fail('Strict padding not enforced');
-        } catch (\Exception $ex) {
-
+        } catch (Exception ) {
             $this->assertSame(
                 Base64::decode($str),
-                \base64_decode($str)
+                base64_decode($str)
             );
         }
     }
 
-    public function testIssue22()
+    public function testIssue22(): void
     {
         // Non-strict: ok
         Base64::decode('00==');
@@ -96,7 +100,7 @@ class Base64Test extends TestCase
         Base64::decode('00==', true);
     }
 
-    public function testDecodeNoPadding()
+    public function testDecodeNoPadding(): void
     {
         Base64::decodeNoPadding('0w');
         $this->expectException(InvalidArgumentException::class);
@@ -104,10 +108,11 @@ class Base64Test extends TestCase
     }
 
     /**
+     * We need this for PHP before attributes
      * @dataProvider canonicalDataProvider
      */
     #[DataProvider("canonicalDataProvider")]
-    public function testNonCanonical(string $input)
+    public function testNonCanonical(string $input): void
     {
         $w = Base64::encodeUnpadded($input);
         $decoded = Base64::decode($w);
@@ -132,7 +137,36 @@ class Base64Test extends TestCase
         );
     }
 
-    public function testStrictPaddingSodium()
+    public function testUnpadded(): void
+    {
+        for ($i = 1; $i < 32; ++$i) {
+            $random = random_bytes($i);
+            $encoded = Base64::encodeUnpadded($random);
+            $decoded = Base64::decodeNoPadding($encoded);
+            $this->assertSame(
+                bin2hex($random),
+                bin2hex($decoded)
+            );
+        }
+    }
+
+    public static function invalidCharactersProvider(): array
+    {
+        return [
+            ['ab.d'],
+            ['ab:d'],
+            ['ab[d'],
+            ['ab]d'],
+        ];
+    }
+
+    /**
+     * Detect issue underlying #67 with ext-sodium
+     *
+     * @return void
+     * @throws Exception
+     */
+    public function testStrictPaddingSodium(): void
     {
         for ($i = 1; $i < 32; ++$i) {
             $random = random_bytes($i);
@@ -140,5 +174,47 @@ class Base64Test extends TestCase
             $decoded = Base64::decode($encoded, true);
             $this->assertSame($decoded, $random);
         }
+    }
+
+    /**
+     * @dataProvider permissiveDecodingProvider
+     */
+    #[DataProvider("permissiveDecodingProvider")]
+    public function testPermissiveDecoding(string $encoded, string $expected): void
+    {
+        $this->assertSame(
+            $expected,
+            bin2hex(Base64::decode($encoded))
+        );
+    }
+
+    /**
+     * Non-strict decoding accepts inputs that strict decoding rejects. Pin the exact output
+     * for each, so the permissive contract cannot drift.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function permissiveDecodingProvider(): array
+    {
+        return [
+            'canonical'                 => ['AAAA', '000000'],
+            'canonical padded'          => ['AA==', '00'],
+            'canonical padded (3)'      => ['AAA=', '0000'],
+            'over-padded'               => ['AA======', '00'],
+            'length 1 mod 4'            => ['AAAAA', '000000'],
+            'non-canonical trailing'    => ['00==', 'd3'],
+            'non-canonical trailing 2'  => ['01==', 'd3'],
+            'non-canonical unpadded'    => ['AB', '00'],
+        ];
+    }
+
+    /**
+     * @dataProvider invalidCharactersProvider
+     */
+    #[DataProvider("invalidCharactersProvider")]
+    public function testInvalidCharacters(string $encoded): void
+    {
+        $this->expectException(RangeException::class);
+        Base64::decode($encoded);
     }
 }

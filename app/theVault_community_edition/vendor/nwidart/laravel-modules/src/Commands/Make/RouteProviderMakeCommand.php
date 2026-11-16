@@ -2,6 +2,7 @@
 
 namespace Nwidart\Modules\Commands\Make;
 
+use Nwidart\Modules\Generators\ModuleGenerator;
 use Nwidart\Modules\Support\Config\GenerateConfigReader;
 use Nwidart\Modules\Support\Stub;
 use Nwidart\Modules\Traits\ModuleCommandTrait;
@@ -31,8 +32,9 @@ class RouteProviderMakeCommand extends GeneratorCommand
     /**
      * The command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -40,6 +42,7 @@ class RouteProviderMakeCommand extends GeneratorCommand
         ];
     }
 
+    #[\Override]
     protected function getOptions()
     {
         return [
@@ -52,21 +55,38 @@ class RouteProviderMakeCommand extends GeneratorCommand
      *
      * @return string
      */
+    #[\Override]
     protected function getTemplateContents()
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub('/route-provider.stub', [
             'NAMESPACE' => $this->getClassNamespace($module),
             'CLASS' => $this->getFileName(),
-            'MODULE_NAMESPACE' => $this->laravel['modules']->config('namespace'),
+            'MODULE_NAMESPACE' => $this->moduleRepository()->config('namespace'),
             'MODULE' => $this->getModuleName(),
             'CONTROLLER_NAMESPACE' => $this->getControllerNameSpace(),
             'WEB_ROUTES_PATH' => $this->getWebRoutesPath(),
             'API_ROUTES_PATH' => $this->getApiRoutesPath(),
             'LOWER_NAME' => $module->getLowerName(),
             'KEBAB_NAME' => $module->getKebabName(),
-        ]))->render();
+        ]))->sections([
+            'WEB_ROUTES' => $this->hasRoutesStub('routes/web'),
+            'API_ROUTES' => $this->hasRoutesStub('routes/api'),
+        ])->render();
+    }
+
+    /**
+     * Whether module:make generates the given routes file.
+     *
+     * A routes file removed from `modules.stubs.files`, or skipped because
+     * `paths.generator.routes.generate` is false, is never created, so the
+     * provider must not map it.
+     */
+    private function hasRoutesStub(string $stub): bool
+    {
+        return array_key_exists($stub, $this->moduleRepository()->config('stubs.files') ?? [])
+            && ModuleGenerator::stubIsGenerated($stub);
     }
 
     /**
@@ -82,9 +102,10 @@ class RouteProviderMakeCommand extends GeneratorCommand
      *
      * @return string
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $generatorPath = GenerateConfigReader::read('provider');
 
@@ -96,7 +117,7 @@ class RouteProviderMakeCommand extends GeneratorCommand
      */
     protected function getWebRoutesPath()
     {
-        return '/'.$this->laravel['modules']->config('stubs.files.routes/web', 'Routes/web.php');
+        return '/'.$this->moduleRepository()->config('stubs.files.routes/web', 'Routes/web.php');
     }
 
     /**
@@ -104,18 +125,19 @@ class RouteProviderMakeCommand extends GeneratorCommand
      */
     protected function getApiRoutesPath()
     {
-        return '/'.$this->laravel['modules']->config('stubs.files.routes/api', 'Routes/api.php');
+        return '/'.$this->moduleRepository()->config('stubs.files.routes/api', 'Routes/api.php');
     }
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.provider.namespace')
-            ?? ltrim(config('modules.paths.generator.provider.path', 'Providers'), config('modules.paths.app_folder', ''));
+            ?? $this->strip_app_folder(config('modules.paths.generator.provider.path', 'Providers'));
     }
 
     private function getControllerNameSpace(): string
     {
-        $module = $this->laravel['modules'];
+        $module = $this->moduleRepository();
 
         return str_replace('/', '\\', $module->config('paths.generator.controller.namespace') ?: $module->config('paths.generator.controller.path', 'Controller'));
     }

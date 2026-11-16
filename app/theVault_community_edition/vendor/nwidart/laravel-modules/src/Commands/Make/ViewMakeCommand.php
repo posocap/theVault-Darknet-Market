@@ -19,6 +19,7 @@ class ViewMakeCommand extends GeneratorCommand
 
     protected $description = 'Create a new view for the specified module.';
 
+    #[\Override]
     protected function getArguments(): array
     {
         return [
@@ -27,14 +28,16 @@ class ViewMakeCommand extends GeneratorCommand
         ];
     }
 
+    #[\Override]
     protected function getTemplateContents(): string
     {
         return (new Stub('/view.stub', ['QUOTE' => Inspiring::quotes()->random()]))->render();
     }
 
+    #[\Override]
     protected function getDestinationFilePath(): string
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
         $factoryPath = GenerateConfigReader::read('views');
 
         return $path.$factoryPath->getPath().'/'.$this->getFileName();

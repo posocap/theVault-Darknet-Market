@@ -2,33 +2,40 @@
 
 namespace Nwidart\Modules;
 
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Foundation\Application;
 use Illuminate\Foundation\ProviderRepository;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Str;
 use Nwidart\Modules\Providers\ConsoleServiceProvider;
-use Nwidart\Modules\Providers\ContractsServiceProvider;
 
 abstract class ModulesServiceProvider extends ServiceProvider
 {
     /**
      * Booting the package.
+     *
+     * @return void
      */
     public function boot() {}
 
     /**
      * Register all modules.
+     *
+     * @return void
      */
+    #[\Override]
     public function register() {}
 
     /**
      * Register all modules.
+     *
+     * @return void
      */
     protected function registerModules()
     {
-        // $this->app->register(\Nwidart\Modules\Providers\BootstrapServiceProvider::class);
+        $manifest = app(ModuleManifest::class);
 
-        $manifest = app()->make(ModuleManifest::class);
+        $manifest->registerAliases();
 
         (new ProviderRepository($this->app, new Filesystem, $this->getCachedModulePath()))
             ->load($manifest->getProviders());
@@ -39,6 +46,8 @@ abstract class ModulesServiceProvider extends ServiceProvider
 
     /**
      * Register package's namespaces.
+     *
+     * @return void
      */
     protected function registerNamespaces()
     {
@@ -60,12 +69,17 @@ abstract class ModulesServiceProvider extends ServiceProvider
 
     /**
      * Register the service provider.
+     *
+     * @return void
      */
     abstract protected function registerServices();
 
     /**
      * Get the services provided by the provider.
+     *
+     * @return array<int, string>
      */
+    #[\Override]
     public function provides(): array
     {
         return [Contracts\RepositoryInterface::class, 'modules'];
@@ -73,15 +87,35 @@ abstract class ModulesServiceProvider extends ServiceProvider
 
     /**
      * Register providers.
+     *
+     * @return void
      */
     protected function registerProviders()
     {
         $this->app->register(ConsoleServiceProvider::class);
-        $this->app->register(ContractsServiceProvider::class);
     }
 
+    /**
+     * Get the path of the module providers manifest.
+     *
+     * The file is always named modules.php and placed in the directory of a Laravel cache file,
+     * so it can never take the name of that cache file (APP_SERVICES_CACHE / APP_CONFIG_CACHE may use any name).
+     *
+     * @return string
+     */
     protected function getCachedModulePath()
     {
-        return Str::replaceLast('services.php', 'modules.php', $this->app->getCachedServicesPath());
+        // On Laravel Vapor the bootstrap cache directory is read-only, but the config cache is
+        // written at runtime to a writable location, so keep the module manifest next to it.
+        $vapor = $this->app->make(ConfigRepository::class)->get('modules.vapor_maintenance_mode');
+
+        if ($this->app instanceof Application) {
+            $cacheFile = $vapor ? $this->app->getCachedConfigPath() : $this->app->getCachedServicesPath();
+        } else {
+            // The Application contract has no cache path methods: use Laravel's default cache directory.
+            $cacheFile = $this->app->bootstrapPath($vapor ? 'cache/config.php' : 'cache/services.php');
+        }
+
+        return dirname($cacheFile).DIRECTORY_SEPARATOR.'modules.php';
     }
 }

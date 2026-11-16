@@ -36,8 +36,9 @@ class ObserverMakeCommand extends GeneratorCommand
     /**
      * Get the console command arguments.
      *
-     * @return array
+     * @return array<int, array<int, mixed>>
      */
+    #[\Override]
     protected function getArguments()
     {
         return [
@@ -49,9 +50,10 @@ class ObserverMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getTemplateContents()
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub('/observer.stub', [
             'NAMESPACE' => $this->getClassNamespace($module),
@@ -66,11 +68,19 @@ class ObserverMakeCommand extends GeneratorCommand
      */
     public function getModelNamespace(): string
     {
-        $path = $this->laravel['modules']->config('paths.generator.model.path', 'Entities');
+        $moduleNamespace = $this->moduleRepository()->config('namespace'); // 'Modules'
+        $moduleName = $this->moduleRepository()->findOrFail($this->getModuleName());
 
-        $path = str_replace('/', '\\', $path);
+        $path = $this->moduleRepository()->config('paths.generator.model.path', 'Entities'); // current is 'app/Models'
+        $appFolder = $this->moduleRepository()->config('paths.app_folder', 'app/');
 
-        return $this->laravel['modules']->config('namespace').'\\'.$this->laravel['modules']->findOrFail($this->getModuleName()).'\\'.$path;
+        if (str_starts_with($path, $appFolder)) {
+            $path = substr($path, strlen($appFolder)); // has 'Models'
+        }
+
+        $nsPart = trim(str_replace('/', '\\', $path), '\\'); // 'Models'
+
+        return $moduleNamespace.'\\'.$moduleName.'\\'.$nsPart; // Modules\Core\Models
     }
 
     /**
@@ -81,9 +91,6 @@ class ObserverMakeCommand extends GeneratorCommand
         return Str::studly($this->argument('name'));
     }
 
-    /**
-     * @return mixed|string
-     */
     private function getModelVariable(): string
     {
         return '$'.Str::lower($this->argument('name'));
@@ -92,9 +99,10 @@ class ObserverMakeCommand extends GeneratorCommand
     /**
      * @return mixed
      */
+    #[\Override]
     protected function getDestinationFilePath()
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $observerPath = GenerateConfigReader::read('observer');
 
@@ -109,21 +117,28 @@ class ObserverMakeCommand extends GeneratorCommand
         return Str::studly($this->argument('name')).'Observer.php';
     }
 
+    #[\Override]
     public function handle(): int
     {
         $this->components->info('Creating observer...');
 
-        parent::handle();
-
-        return 0;
+        return parent::handle();
     }
 
     /**
      * Get default namespace.
      */
+    #[\Override]
     public function getDefaultNamespace(): string
     {
-        return config('modules.paths.generator.observer.namespace')
-            ?? ltrim(config('modules.paths.generator.observer.path', 'Observers'), config('modules.paths.app_folder', ''));
+
+        $path = config('modules.paths.generator.observer.path', 'Observers'); // 'app/Observers'
+        $appFolder = config('modules.paths.app_folder', 'app/');
+
+        if (str_starts_with($path, $appFolder)) {
+            $path = substr($path, strlen($appFolder)); // 'Observers'
+        }
+
+        return trim(str_replace('/', '\\', $path), '\\'); // 'Observers'
     }
 }

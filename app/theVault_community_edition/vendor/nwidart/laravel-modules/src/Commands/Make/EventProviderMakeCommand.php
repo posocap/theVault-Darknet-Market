@@ -19,18 +19,20 @@ class EventProviderMakeCommand extends GeneratorCommand
 
     protected $description = 'Create a new event service provider class for the specified module.';
 
+    #[\Override]
     public function getDestinationFilePath(): string
     {
-        $path = $this->laravel['modules']->getModulePath($this->getModuleName());
+        $path = $this->moduleRepository()->getModulePath($this->getModuleName());
 
         $filePath = GenerateConfigReader::read('provider')->getPath();
 
         return $path.$filePath.'/'.$this->getEventServiceProviderName().'.php';
     }
 
+    #[\Override]
     protected function getTemplateContents(): string
     {
-        $module = $this->laravel['modules']->findOrFail($this->getModuleName());
+        $module = $this->moduleRepository()->findOrFail($this->getModuleName());
 
         return (new Stub($this->getStubName(), [
             'NAMESPACE' => $this->getClassNamespace($module),
@@ -38,6 +40,7 @@ class EventProviderMakeCommand extends GeneratorCommand
         ]))->render();
     }
 
+    #[\Override]
     protected function getArguments(): array
     {
         return [
@@ -45,27 +48,32 @@ class EventProviderMakeCommand extends GeneratorCommand
         ];
     }
 
+    #[\Override]
     protected function getOptions(): array
     {
         return [
-            ['force', 'f', InputOption::VALUE_NONE, 'su.'],
+            ['force', 'f', InputOption::VALUE_NONE, 'Overwrite the file if it already exists'],
         ];
     }
 
+    /**
+     * @return string|array<int, string>
+     */
     protected function getEventServiceProviderName(): array|string
     {
         return Str::studly('EventServiceProvider');
     }
 
-    private function getClassNameWithoutNamespace(): array|string
+    private function getClassNameWithoutNamespace(): string
     {
         return class_basename($this->getEventServiceProviderName());
     }
 
+    #[\Override]
     public function getDefaultNamespace(): string
     {
         return config('modules.paths.generator.provider.namespace')
-            ?? ltrim(config('modules.paths.generator.provider.path', 'Providers'), config('modules.paths.app_folder', ''));
+            ?? $this->strip_app_folder(config('modules.paths.generator.provider.path', 'Providers'));
     }
 
     protected function getStubName(): string
