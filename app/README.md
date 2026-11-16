@@ -29,13 +29,13 @@ For everyday browsing with enhanced privacy and functionality, consider using th
 
 ## 🚀 Project Overview
 
-**theVault** iterates on the foundations laid by Eckmar's Marketplace and Goldhat Free Market, updating the codebase to utilize **Laravel 11** and **PHP 8.3.x**. Laravel 12 will be supported after its imminent launch.
+**theVault** iterates on the foundations laid by Eckmar's Marketplace and Goldhat Free Market, updating the codebase to utilize **Laravel 12** and **PHP 8.3.x** (use a patched PHP release; see the installer for the minimum versions).
 
 This project has been tested on Debian and Fedora. Fedora is recommended on the basis that Debian is cruddy and basic. It probably runs fine on almost any Linux, but you'll need to update the installer commands (change dnf, apt, or your package manager accordingly).
 
 ### ⚙️ Features
 
-- **Modern Framework**: Built on Laravel 11 and PHP 8.3.16 for enhanced performance and maintainability.
+- **Modern Framework**: Built on Laravel 12 and PHP 8.3.x for enhanced performance and maintainability.
 - **Elasticsearch Vectorstore**: Fast searching with the newest Elasticsearch (currently 8.17).
 - **OpenJDK**: Updated Java, bundled with Elasticsearch for compatibility.
 - **Redis**: Optional Redis 7.2.7 support for improved app performance.
@@ -49,8 +49,8 @@ Here you will find a fully functional darknet market/store.
 
 #### What's included?
 
-1. A fully functional, darknet-ready market based on PHP 8.3 and Laravel 11.
-2. Support for Laravel 12, launching at the end of February 2025.
+1. A fully functional, darknet-ready market based on PHP 8.3 and Laravel 12.
+2. Simulation-only payments (no cryptocurrency daemons required) for demo use.
 3. Admin panel.
 4. Multi-seller support.
 5. Captchas.
@@ -112,7 +112,8 @@ I offer freelance support as a maintainer or developer for **theVault**. This in
 
 ## 📅 Future Updates
 
-- **Laravel 12** is set to launch in less than two weeks. It is recommended to upgrade the project or any forks to stay current with the latest features and improvements.
+- The project now runs on **Laravel 12**. Forks on Laravel 11 should upgrade to stay current.
+- Known dependency note: `phpseclib` 2.x (used by the PGP/RSA helpers) has published security advisories and has no patched 2.x release; replacing it is planned.
 
 ## 📞 Contact
 
