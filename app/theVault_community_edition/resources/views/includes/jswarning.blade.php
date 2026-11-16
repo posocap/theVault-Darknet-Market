@@ -1,4 +1,5 @@
-@if(config('marketplace.js_warning'))
+{{-- Only warn visitors who are on Tor (requests to the onion service carry a *.onion Host header). --}}
+@if(config('marketplace.js_warning') && str_ends_with(strtolower(request()->getHost()), '.onion'))
     <div class="mt-3">
         <div id="jswarning"></div>
     </div>
