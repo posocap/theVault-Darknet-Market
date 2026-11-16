@@ -21,6 +21,14 @@ class Vendor extends User
     protected $primaryKey = 'id';
     protected $fillable = ['id', 'vendor_level', 'about', 'created_at', 'updated_at'];
 
+    /**
+     * The users row that shares this vendor's id (used by the landing page).
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'id', 'id');
+    }
+
     // ... (other methods)
 
     /**
