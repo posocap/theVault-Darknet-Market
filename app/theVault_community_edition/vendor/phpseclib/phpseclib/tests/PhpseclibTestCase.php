@@ -1,13 +1,18 @@
 <?php
+
 /**
  * @author    Andreas Fischer <bantu@phpbb.com>
  * @copyright 2013 Andreas Fischer
  * @license   http://www.opensource.org/licenses/mit-license.html  MIT License
  */
 
-abstract class PhpseclibTestCase extends PHPUnit\Framework\TestCase
+namespace phpseclib3\Tests;
+
+use PHPUnit\Framework\TestCase;
+
+abstract class PhpseclibTestCase extends TestCase
 {
-    protected $tempFilesToUnlinkOnTearDown = array();
+    protected $tempFilesToUnlinkOnTearDown = [];
 
     public function tearDown()
     {
@@ -81,88 +86,98 @@ abstract class PhpseclibTestCase extends PHPUnit\Framework\TestCase
         }
     }
 
-    /**
-     * @param string $filename Filename relative to library directory.
-     *
-     * @return null
-     */
-    protected static function reRequireFile($filename)
+    protected static function getVar($obj, $var)
     {
-        if (extension_loaded('runkit')) {
-            $result = runkit_import(
-                sprintf('%s/../phpseclib/%s', __DIR__, $filename),
-                RUNKIT_IMPORT_FUNCTIONS |
-                RUNKIT_IMPORT_CLASS_METHODS |
-                RUNKIT_IMPORT_OVERRIDE
-            );
-
-            if (!$result) {
-                self::markTestSkipped("Failed to reimport file $filename");
+        $reflection = new \ReflectionClass(get_class($obj));
+        // private variables are not inherited, climb hierarchy until located
+        while (true) {
+            try {
+                $prop = $reflection->getProperty($var);
+                break;
+            } catch (\ReflectionException $e) {
+                $reflection = $reflection->getParentClass();
+                if (!$reflection) {
+                    throw $e;
+                }
             }
         }
+        $prop->setAccessible(true);
+        return $prop->getValue($obj);
+    }
+
+    protected static function setVar($obj, $var, $value)
+    {
+        $reflection = new \ReflectionClass(get_class($obj));
+        // private variables are not inherited, climb hierarchy until located
+        while (true) {
+            try {
+                $prop = $reflection->getProperty($var);
+                break;
+            } catch (\ReflectionException $e) {
+                $reflection = $reflection->getParentClass();
+                if (!$reflection) {
+                    throw $e;
+                }
+            }
+        }
+        $prop->setAccessible(true);
+        $prop->setValue($obj, $value);
+    }
+
+    public static function callFunc($obj, $func, $params = [])
+    {
+        $reflection = new \ReflectionClass(get_class($obj));
+        $method = $reflection->getMethod($func);
+        $method->setAccessible(true);
+        return $method->invokeArgs($obj, $params);
     }
 
     // assertIsArray was not introduced until PHPUnit 8
     public static function assertIsArray($actual, $message = '')
     {
-        if (method_exists('\PHPUnit\Framework\TestCase', 'assertIsArray')) {
-            parent::assertIsArray($actual, $message);
-            return;
-        }
-
         parent::assertInternalType('array', $actual, $message);
     }
 
     // assertIsString was not introduced until PHPUnit 8
     public static function assertIsString($actual, $message = '')
     {
-        if (method_exists('\PHPUnit\Framework\TestCase', 'assertIsString')) {
-            parent::assertIsString($actual, $message);
-            return;
-        }
-
         parent::assertInternalType('string', $actual, $message);
+    }
+
+    // assertIsResource was not introduced until PHPUnit 8
+    public static function assertIsResource($actual, $message = '')
+    {
+        parent::assertInternalType('resource', $actual, $message);
+    }
+
+    // assertIsObject was not introduced until PHPUnit 8
+    public static function assertIsObject($actual, $message = '')
+    {
+        parent::assertInternalType('object', $actual, $message);
     }
 
     // assertContains is deprecated for strings in PHPUnit 8
     public static function assertStringContainsString($needle, $haystack, $message = '')
     {
-        if (method_exists('\PHPUnit\Framework\TestCase', 'assertStringContainsString')) {
-            parent::assertStringContainsString($needle, $haystack, $message);
-            return;
-        }
-
         parent::assertContains($needle, $haystack, $message);
     }
 
     // assertNotContains is deprecated for strings in PHPUnit 8
     public static function assertStringNotContainsString($needle, $haystack, $message = '')
     {
-        if (method_exists('\PHPUnit\Framework\TestCase', 'assertStringContainsString')) {
-            parent::assertStringNotContainsString($needle, $haystack, $message);
-            return;
-        }
-
         parent::assertNotContains($needle, $haystack, $message);
     }
 
-    public function setExpectedException($name, $message = null, $code = null)
+    /**
+     * assertRegExp() was deprecated in favor of assertMatchesRegularExpression().
+     *
+     * @param string $pattern
+     * @param string $string
+     * @param string $message
+     * @return void
+     */
+    public static function assertMatchesRegularExpression($pattern, $string, $message = '')
     {
-        if (version_compare(PHP_VERSION, '7.0.0') < 0) {
-            parent::setExpectedException($name, $message, $code);
-            return;
-        }
-        switch ($name) {
-            case 'PHPUnit_Framework_Error_Notice':
-            case 'PHPUnit_Framework_Error_Warning':
-                $name = str_replace('_', '\\', $name);
-        }
-        $this->expectException($name);
-        if (!empty($message)) {
-            $this->expectExceptionMessage($message);
-        }
-        if (!empty($code)) {
-            $this->expectExceptionCode($code);
-        }
+        parent::assertRegExp($pattern, $string, $message);
     }
 }
